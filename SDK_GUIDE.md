@@ -8,11 +8,21 @@ A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard
 
 ## 1. Installation
 
+**Current alpha distribution — via GitHub, not npm's public registry yet:**
+
+```bash
+npm install github:Talhawaqas/custody-sdk ethers
+```
+
+This is a private repository. You'll need collaborator access granted (ask Talha) and git authentication configured on your machine (SSH key or a GitHub personal access token) — `npm install github:...` clones the repo under the hood, so the same auth npm uses for any private GitHub install applies here.
+
+`ethers` (v6) is a peer dependency, not bundled — install it alongside regardless of which method above you used.
+
+**Once this graduates to a public npm publish** (not yet — see the known limitations section for why), installation will simplify to:
 ```bash
 npm install @inaya-network/custody-sdk ethers
 ```
-
-`ethers` (v6) is a peer dependency, not bundled — install it alongside.
+Check back here or watch for an announcement before assuming that command works.
 
 ## 2. What This SDK Actually Does
 
@@ -183,7 +193,9 @@ npx tsc --noEmit --strict your-file.ts
 ```
 custody-sdk/
 ├── package.json
+├── package-lock.json
 ├── README.md
+├── SDK_GUIDE.md
 ├── src/
 │   ├── crypto.js / crypto.d.ts        — encryption, sharding
 │   ├── contracts.js / contracts.d.ts  — ABIs + deployed addresses
@@ -199,3 +211,5 @@ custody-sdk/
 ├── diagnostic_check.mjs
 └── type_check_test.ts
 ```
+
+**Live repository:** github.com/Talhawaqas/custody-sdk
