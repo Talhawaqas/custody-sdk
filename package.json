@@ -1,0 +1,32 @@
+{
+  "name": "@inaya-network/custody-sdk",
+  "version": "1.0.4-beta",
+  "description": "Client-side cryptographic sovereignty SDK for the Inaya Network — encrypt, shard, anchor, and reconstruct files against BNB Chain Testnet.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "peerDependencies": {
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "inaya",
+    "depin",
+    "custody",
+    "encryption",
+    "sharding",
+    "bnb-chain"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

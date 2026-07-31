@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Inaya Custody SDK — Test Harness</title>
+<script type="importmap">
+{
+  "imports": {
+    "ethers": "https://esm.sh/ethers@6"
+  }
+}
+</script>
+<style>
+  body { font-family: monospace; background: #0a0e14; color: #d7e0f5; max-width: 760px; margin: 40px auto; padding: 0 20px; }
+  h1 { color: #7fd6c8; font-size: 18px; }
+  .step { background: #0e1830; border: 1px solid #2a3a5c; border-radius: 6px; padding: 14px 18px; margin-bottom: 14px; }
+  .step h3 { margin: 0 0 8px; color: #c9a24d; font-size: 13px; }
+  button { background: #7fd6c8; color: #0a0e14; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-right: 8px; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  input, textarea { width: 100%; background: #060c16; color: #d7e0f5; border: 1px solid #2a3a5c; border-radius: 4px; padding: 6px 8px; margin: 4px 0; font-family: monospace; }
+  .log { white-space: pre-wrap; font-size: 11px; color: #94a3b8; background: #060c16; border-radius: 4px; padding: 10px; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+  .ok { color: #7fd6c8; } .err { color: #ff8080; } .stage { color: #f5c542; }
+  .eventlog { white-space: pre-wrap; font-size: 10.5px; color: #7d8aa0; background: #060c16; border-radius: 4px; padding: 10px; max-height: 260px; overflow-y: auto; border: 1px solid #2a3a5c; }
+</style>
+</head>
+<body>
+<h1>🧪 Inaya Custody SDK — Manual Test Harness (BNB Chain Testnet)</h1>
+<p style="color:#8b93ab;font-size:12px;">
+  Imports the <b>real, shipped SDK files</b> directly (<code>./src/index.js</code>) — not a duplicated reimplementation like the previous version of this harness. Must be served over http:// (e.g. <code>npx serve .</code>), not opened via file:// — MetaMask won't inject into file:// pages.
+</p>
+
+<div class="step">
+  <h3>Live Event Log — InayaKernel.events</h3>
+  <p style="font-size:11px;color:#8b93ab;">Subscribed once, at page load, to every event the SDK emits — this is the event-driven pattern, running alongside the per-call onProgress callbacks used in each step below.</p>
+  <div id="eventLog" class="eventlog"></div>
+</div>
+
+<div class="step">
+  <h3>Step 1 — Connect Wallet</h3>
+  <button id="btnConnect">Connect Wallet</button>
+  <div id="logConnect" class="log"></div>
+</div>
+
+<div class="step">
+  <h3>Step 2 — Encrypt &amp; Shard a Test File</h3>
+  <input type="text" id="passkey" placeholder="Test passkey (any string)" value="test-passkey-123">
+  <input type="file" id="fileInput">
+  <button id="btnEncrypt" disabled>Encrypt + Shard</button>
+  <div id="logEncrypt" class="log"></div>
+</div>
+
+<div class="step">
+  <h3>Step 3 — Anchor to Ledger (batchRegisterAssets)</h3>
+  <p style="font-size:11px;color:#8b93ab;">Watch this log for real progress stages: reading fees → approving → hashing → submitting → confirming.</p>
+  <button id="btnAnchor" disabled>Anchor to Ledger</button>
+  <div id="logAnchor" class="log"></div>
+</div>
+
+<div class="step">
+  <h3>Step 4 — Retrieve &amp; Decrypt</h3>
+  <button id="btnRetrieve" disabled>Retrieve + Decrypt</button>
+  <div id="logRetrieve" class="log"></div>
+</div>
+
+<script type="module">
+import { InayaKernel } from "./src/index.js";
+
+const log = (id, msg, cls = "") => { document.getElementById(id).innerHTML += `<div class="${cls}">${msg}</div>`; };
+const logEvent = (msg) => { const el = document.getElementById("eventLog"); el.innerHTML += `<div>${msg}</div>`; el.scrollTop = el.scrollHeight; };
+
+// ---- Subscribe to every event once, at page load — the event-driven pattern ----
+InayaKernel.events.on("anchor:progress", (p) => logEvent(`[event] anchor:progress → ${p.stage}`));
+InayaKernel.events.on("anchor:complete", (p) => logEvent(`[event] anchor:complete → tx ${p.transactionHash.slice(0, 14)}...`));
+InayaKernel.events.on("approve:progress", (p) => logEvent(`[event] approve:progress → ${p.stage}`));
+InayaKernel.events.on("approve:complete", (p) => logEvent(`[event] approve:complete → usdtFee=${p.usdtFee} inayaFee=${p.inayaFee}`));
+InayaKernel.events.on("retrieve:progress", (p) => logEvent(`[event] retrieve:progress → ${p.stage}`));
+InayaKernel.events.on("retrieve:complete", () => logEvent(`[event] retrieve:complete`));
+InayaKernel.events.on("error", (p) => logEvent(`[event] ❌ error in ${p.operation}: ${p.error?.message || p.error}`));
+
+let connection, vaultKey, sharded, fileSizeBytes, filename, fileHash;
+
+document.getElementById("btnConnect").onclick = async () => {
+  document.getElementById("logConnect").innerHTML = "";
+  try {
+    connection = await InayaKernel.connectWallet();
+    log("logConnect", `✅ Connected: ${connection.address}`, "ok");
+
+    // InayaKernel.connectWallet() doesn't check the network — do it explicitly
+    // here, since every contract call below will fail with a confusing
+    // "missing revert data" error if the wallet is on the wrong chain.
+    const chainIdHex = await window.ethereum.request({ method: "eth_chainId" });
+    const chainId = parseInt(chainIdHex, 16);
+    if (chainId === 97) {
+      log("logConnect", `✅ Chain ID: ${chainId} (BNB Chain Testnet)`, "ok");
+    } else {
+      log("logConnect", `❌ Wrong network! Chain ID is ${chainId}, expected 97 (BNB Chain Testnet). Switch networks in MetaMask before continuing.`, "err");
+    }
+
+    document.getElementById("btnEncrypt").disabled = false;
+  } catch (e) {
+    log("logConnect", `❌ ${e.message}`, "err");
+  }
+};
+
+document.getElementById("btnEncrypt").onclick = async () => {
+  try {
+    const file = document.getElementById("fileInput").files[0];
+    const passkey = document.getElementById("passkey").value;
+    if (!file) return log("logEncrypt", "❌ Choose a file first.", "err");
+
+    filename = file.name;
+    fileSizeBytes = file.size;
+    const salt = InayaKernel.generateSecureSalt(16);
+    vaultKey = await InayaKernel.deriveVaultKey({ passkey, salt });
+    sharded = await InayaKernel.disperseAndSlice({ file, encryptionKey: vaultKey });
+
+    log("logEncrypt", `✅ Encrypted + sharded "${filename}" (${fileSizeBytes} bytes)`, "ok");
+    log("logEncrypt", `Shard Alpha (${sharded.shardAlpha.length} chars): ${sharded.shardAlpha.slice(0, 40)}...`);
+    log("logEncrypt", `Shard Beta (${sharded.shardBeta.length} chars): ${sharded.shardBeta.slice(0, 40)}...`);
+    document.getElementById("btnAnchor").disabled = false;
+  } catch (e) {
+    log("logEncrypt", `❌ ${e.message}`, "err");
+  }
+};
+
+document.getElementById("btnAnchor").onclick = async () => {
+  try {
+    const fees = await InayaKernel.approveFeeTokens({
+      connection,
+      fileSizeBytes,
+      onProgress: (p) => log("logAnchor", `<span class="stage">// ${p.stage}</span>`),
+    });
+    log("logAnchor", `Computed fee: usdt=${fees.usdtFee} inaya=${fees.inayaFee}`);
+
+    const receipt = await InayaKernel.anchorToLedger({
+      connection,
+      fileName: filename,
+      fileSizeBytes,
+      dataShardAlpha: sharded.shardAlpha,
+      dataShardBeta: sharded.shardBeta,
+      onProgress: (p) => log("logAnchor", `<span class="stage">// ${p.stage}</span>`),
+    });
+    fileHash = receipt.fileHash;
+
+    log("logAnchor", `✅ Confirmed: tx ${receipt.transactionHash}`, "ok");
+    log("logAnchor", `View: https://testnet.bscscan.com/tx/${receipt.transactionHash}`);
+    document.getElementById("btnRetrieve").disabled = false;
+  } catch (e) {
+    log("logAnchor", `❌ ${e.message}`, "err");
+  }
+};
+
+document.getElementById("btnRetrieve").onclick = async () => {
+  try {
+    const passkey = document.getElementById("passkey").value;
+    const restored = await InayaKernel.retrieveAndReconstruct({
+      connection,
+      fileHash,
+      passkey,
+      onProgress: (p) => log("logRetrieve", `<span class="stage">// ${p.stage}</span>`),
+    });
+    const matches = restored.dataUrl.startsWith("data:");
+    log("logRetrieve", matches ? "✅ Reconstructed + decrypted successfully — full round trip confirmed on-chain." : "❌ Decrypted output doesn't look like a valid data URL.", matches ? "ok" : "err");
+  } catch (e) {
+    log("logRetrieve", `❌ ${e.message}`, "err");
+  }
+};
+</script>
+
+<div class="step">
+  <h3>Step 5 — Payments Client (against your real, deployed backend)</h3>
+  <p style="font-size:11px;color:#8b93ab;">
+    <b>Important:</b> these calls only work if pointed at an origin where the actual
+    <code>/api/*</code> routes are deployed (your Next.js app, not this static harness).
+    If that origin doesn't explicitly allow cross-origin requests, the browser will
+    block this with a CORS error — which is itself a real, useful result: it means
+    a <i>separate</i> third-party frontend would need the backend to send
+    <code>Access-Control-Allow-Origin</code> headers before it could call these
+    routes from a different domain. Calling from code that already runs on the
+    <i>same</i> origin as the API (the normal case) has no such issue.
+  </p>
+  <input type="text" id="apiBaseUrl" placeholder="https://inayanetwork.com (leave blank if serving this harness from the same origin)">
+  <button id="btnWhoAmI">Test whoAmI()</button>
+  <button id="btnPaygAssets">Test getPaygAssets()</button>
+  <div id="logPayments" class="log"></div>
+</div>
+
+<script type="module">
+import { Payments } from "./src/payments.js";
+
+const logPay = (msg, cls = "") => { document.getElementById("logPayments").innerHTML += `<div class="${cls}">${msg}</div>`; };
+
+document.getElementById("btnWhoAmI").onclick = async () => {
+  const apiBaseUrl = document.getElementById("apiBaseUrl").value.trim();
+  try {
+    const result = await Payments.whoAmI({ apiBaseUrl });
+    logPay(`✅ whoAmI() reached the backend. email: ${result.email ?? "(none — no cookie set yet, which is expected on a fresh browser)"}`, "ok");
+  } catch (e) {
+    const isCors = e.message === "Failed to fetch" || e.name === "TypeError";
+    logPay(`❌ ${e.message}${isCors ? " — likely CORS, since this harness's origin differs from the API's origin. See the note above." : ""}`, "err");
+  }
+};
+
+document.getElementById("btnPaygAssets").onclick = async () => {
+  const apiBaseUrl = document.getElementById("apiBaseUrl").value.trim();
+  try {
+    const result = await Payments.getPaygAssets({ apiBaseUrl });
+    logPay(`✅ getPaygAssets() reached the backend. ${result.assets?.length ?? 0} asset(s) found.`, "ok");
+  } catch (e) {
+    const isCors = e.message === "Failed to fetch" || e.name === "TypeError";
+    logPay(`❌ ${e.message}${isCors ? " — likely CORS, since this harness's origin differs from the API's origin. See the note above." : ""}`, "err");
+  }
+};
+</script>
+</body>
+</html>
