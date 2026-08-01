@@ -19,6 +19,7 @@
 import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
 import { sha256, sha384, sha512 } from "@noble/hashes/sha2.js";
 import { gcm } from "@noble/ciphers/aes.js";
+import { InayaValidationError } from "./errors.js";
 
 const PBKDF2_ITERATIONS = 100000;
 const SALT_BYTES = 16;
@@ -38,13 +39,14 @@ function fromBase64(b64) {
   return bytes;
 }
 
-function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+// Built on file.arrayBuffer() rather than FileReader — the latter is a browser-only global with
+// no Node.js equivalent, which would silently break disperseAndSlice() in exactly the plain-Node
+// usage this SDK otherwise supports (see index.js's dual-mode connection story). Both browser
+// File/Blob and Node 18+'s global File/Blob implement arrayBuffer(), so this works in either.
+async function readFileAsDataURL(file) {
+  const buffer = await file.arrayBuffer();
+  const mimeType = file.type || "application/octet-stream";
+  return `data:${mimeType};base64,${toBase64(new Uint8Array(buffer))}`;
 }
 
 /** Generates a cryptographically secure random salt of the given byte length. */
@@ -63,9 +65,9 @@ const HASH_FN_MAP = {
 };
 
 export async function deriveVaultKey({ passkey, salt, iterations = PBKDF2_ITERATIONS, algo = "HMAC-SHA256" }) {
-  if (!passkey) throw new Error("InayaKernel.deriveVaultKey: passkey is required.");
+  if (!passkey) throw new InayaValidationError("InayaKernel.deriveVaultKey: passkey is required.");
   const hashFn = HASH_FN_MAP[algo];
-  if (!hashFn) throw new Error(`InayaKernel.deriveVaultKey: unsupported algo "${algo}". Use one of: ${Object.keys(HASH_FN_MAP).join(", ")}.`);
+  if (!hashFn) throw new InayaValidationError(`InayaKernel.deriveVaultKey: unsupported algo "${algo}". Use one of: ${Object.keys(HASH_FN_MAP).join(", ")}.`);
   const key = pbkdf2(hashFn, passkey, salt, { c: iterations, dkLen: AES_KEY_BYTES });
   return { key, salt, iterations, algo };
 }
@@ -76,8 +78,8 @@ export async function deriveVaultKey({ passkey, salt, iterations = PBKDF2_ITERAT
  * Neither shard alone contains contiguous bit structures.
  */
 export async function disperseAndSlice({ file, encryptionKey }) {
-  if (!file) throw new Error("InayaKernel.disperseAndSlice: file is required.");
-  if (!encryptionKey?.key) throw new Error("InayaKernel.disperseAndSlice: a vault key from deriveVaultKey() is required.");
+  if (!file) throw new InayaValidationError("InayaKernel.disperseAndSlice: file is required.");
+  if (!encryptionKey?.key) throw new InayaValidationError("InayaKernel.disperseAndSlice: a vault key from deriveVaultKey() is required.");
 
   const dataUrl = await readFileAsDataURL(file);
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
@@ -105,7 +107,7 @@ export async function disperseAndSlice({ file, encryptionKey }) {
  * file using only the passkey — mirrors the dApp's existing reconstruct flow.
  */
 export async function reconstructAndDecrypt({ shardAlpha, shardBeta, passkey }) {
-  if (!passkey) throw new Error("InayaKernel.reconstructAndDecrypt: passkey is required.");
+  if (!passkey) throw new InayaValidationError("InayaKernel.reconstructAndDecrypt: passkey is required.");
   const fullCipherText = shardAlpha + shardBeta;
   const combined = fromBase64(fullCipherText);
 
