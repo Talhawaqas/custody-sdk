@@ -42,7 +42,7 @@ See [SDK_GUIDE.md §3](./SDK_GUIDE.md#3-quick-start--browser-wallet-connected-up
 - **Payments** (`src/payments.js`) — a typed client for the card-payment (no-wallet) backend routes.
 - **Metadata** (`src/metadata.js`) — rename/move/delete, virtual folders, and sharing — an off-chain layer authenticated by wallet signatures, since the on-chain contract itself is write-once.
 
-Runnable examples for React, Next.js, and plain Node.js are in [`examples/`](./examples).
+Runnable examples for React (upload, staking, file management), Next.js (all three backend clients), and plain Node.js are in [`examples/`](./examples).
 
 ## Contributing
 

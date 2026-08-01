@@ -29,7 +29,7 @@ Check back here or watch for an announcement before assuming that command works.
 Three layers, each independently usable:
 
 1. **Crypto** (`crypto.js`) — client-side AES-GCM-256 encryption and binary sharding. Works in browsers *and* plain Node.js (verified — `readFileAsDataURL` uses the portable `file.arrayBuffer()` API, not the browser-only `FileReader`).
-2. **On-chain** (`index.js`) — wraps `InayaCustody`'s `batchRegisterAssets`/`assets` calls and `InayaStaking`. Supports **dual-mode connections**: a browser wallet (via `connectWallet()`) or a server-held `ethers.Wallet` passed directly — the same pattern the actual Inaya backend uses to sign on a card customer's behalf.
+2. **On-chain** (`index.js`) — wraps `InayaCustody`'s `batchRegisterAssets`/`assets` calls and `InayaStaking` (see `InayaKernel.Staking` — `stake`/`unstake`/`claimReward`/`calculateReward`/`getStakedBalance`; `examples/StakingWidget.jsx` is a complete browser client). Supports **dual-mode connections**: a browser wallet (via `connectWallet()`) or a server-held `ethers.Wallet` passed directly — the same pattern the actual Inaya backend uses to sign on a card customer's behalf.
 3. **Payments** (`payments.js`) — a typed client for the card-payment backend routes (Corporate Reserve, PAYG, egress checkouts). **Does not contain any secrets** — it only calls `fetch()` against routes you deploy yourself.
 4. **Metadata** (`metadata.js`) — a typed client for rename/move/delete/virtual-folders/sharing, the same "zero secrets, bring-your-own-backend" shape as Payments. Exists because `InayaCustody.batchRegisterAssets()` is write-once on-chain (see §12's known limitations for how this was verified) — this module fills the gap with a server-backed layer authenticated by wallet signatures, not on-chain transactions.
 
@@ -164,7 +164,7 @@ All five are also available via `InayaKernel.errors.*` if you'd rather not add n
 
 ## 8. The Payments Client — Card Payments, No Wallet
 
-**Critical to understand before using this:** `InayaKernel.Payments` is a client for backend routes **you deploy yourself**. It contains zero payment logic, zero secrets — every function just calls `fetch()` against routes like `/api/create-payg-checkout-session`. The actual Stripe/treasury-wallet/database logic lives server-side in your own Next.js API routes (see the `backend-demo` folder in this repo for the reference implementation).
+**Critical to understand before using this:** `InayaKernel.Payments` is a client for backend routes **you deploy yourself**. It contains zero payment logic, zero secrets — every function just calls `fetch()` against routes like `/api/create-payg-checkout-session`. The actual Stripe/treasury-wallet/database logic lives server-side in your own Next.js API routes — see `examples/nextjs-payments-api-routes.js` for a reference implementation.
 
 ```js
 import { InayaKernel } from "@inaya-network/custody-sdk";
@@ -229,6 +229,8 @@ Skipping step 4 in particular means anyone who learns a `fileHash` could rename,
 
 **Full method list:** `registerFileMetadata`, `renameFile`, `moveFile`, `deleteFile`, `restoreFile`, `listFiles`, `createFolder`, `renameFolder`, `moveFolder`, `deleteFolder`, `listFolders`, `shareFile`, `revokeShare`, `listSharedWithMe`.
 
+See `examples/FileManagerWidget.jsx` for a complete browser-based client using all of the above against the reference backend in `examples/nextjs-metadata-api-routes.js`.
+
 ## 10. TypeScript
 
 Fully typed — every function, every event payload. No `@types` package needed; the `.d.ts` files ship alongside the source.
@@ -256,7 +258,7 @@ npx tsc --noEmit --strict your-file.ts
 
 1. **Egress has no on-chain enforcement.** Retrieval (`assets()`) is a public read; nothing in the deployed contract gates it. The `Payments.getEgressUnlockStatus`/`startEgressCheckout` pair is an *application-level* gate for card customers only — bypassable by anyone who already knows a `fileHash` and queries the chain/IPFS directly. Wallet-connected users currently have no egress gate of any kind.
 2. **`InayaNetwork` (a second registry contract) is deployed but unused.** All reads/writes in this SDK go through `InayaCustody` exclusively — don't assume `INAYA_ADDRESSES.network` is part of the active data path.
-3. **The Payments module assumes you've already deployed the backend routes.** Installing this npm package alone does not give you working payments — see `backend-demo/` for what needs deploying alongside it.
+3. **(Fixed 2026-08-01) The Payments module assumes you've already deployed the backend routes.** Installing this npm package alone does not give you working payments. This entry used to point at a `backend-demo/` folder that never actually existed anywhere in this repo — a dangling reference nobody had caught. Replaced with a real reference implementation: see `examples/nextjs-payments-api-routes.js` for what needs deploying alongside it.
 4. **Webhook idempotency is not implemented** on the reference backend. A Stripe retry could theoretically re-run an on-chain settlement twice for the same payment — worth adding before any real (non-testnet) usage.
 5. **(Fixed 2026-08-01) `INAYA_STAKING_ABI` didn't match the deployed `InayaStaking` contract.** The previous ABI (`stake(uint256)`, `unstake()`, `calculateReward()`, `stakedBalance()`) shared none of its function names with the real contract at `INAYA_ADDRESSES.staking` — every `Staking.*` call would have reverted. Found while wiring the mobile app's Staking screen against the same address and cross-checked directly against `contracts/InayaStaking.sol`. Replaced with the verified-correct ABI (`stake(amount, lockPeriodDays)`, `withdraw(amount)`, `claimReward()`, `earned()`, `userStakedBalance()`, `getUserTier()`, `totalStaked()`, `rewardRate()`, `lockExpiry()`, `enterpriseTierThreshold()`), and updated `Staking.stake/unstake/calculateReward/getStakedBalance` accordingly. Two behavior changes worth flagging for existing callers: `stake()` now takes an optional `lockPeriodDays` (0/30/90, default 0); `unstake()` now requires an `amount` (the real contract's `withdraw()` takes a partial amount, not an all-or-nothing exit) and no longer also pays out rewards — call the new `Staking.claimReward()` separately for that, matching the real contract's separate `withdraw()`/`claimReward()` functions. `INAYA_CUSTODY_ABI` and `INAYA_TOKEN_ABI` were checked against the same real contract sources (`InayaToken.sol`) and the web dApp's own contract calls and don't have this problem — both match exactly.
 6. **(Confirmed 2026-08-01) `InayaCustody` has no on-chain mutation/delete/rename capability of any kind.** Went looking for this directly rather than assuming it from an absence of documentation: pulled the contract's live bytecode via `eth_getCode` and extracted its function selectors, then — because that same selector-extraction approach turned out to have a real blind spot on a larger 33-function contract (it missed `earned(address)` on `InayaStaking` due to compiler-generated binary-search dispatch instead of a linear if-chain, caught only by cross-checking with a live call) — re-verified Custody the more rigorous way: live `eth_call`s against six plausible mutation function names. All six reverted with empty data (`execution reverted: 0x`, no reason string — the signature of "no matching selector, no fallback"), while the real `assets(bytes32)` call on the same contract succeeded cleanly even with a dummy key. `batchRegisterAssets` is genuinely the only function that writes asset data, and it's write-once by design. This is the reason the new `Metadata` client (§9) exists as an off-chain layer rather than as additional on-chain contract calls.
@@ -289,8 +291,11 @@ custody-sdk/
 │   ├── payments.js / payments.d.ts    — card-payment backend client
 │   └── metadata.js / metadata.d.ts    — rename/move/delete/folders/sharing backend client
 ├── examples/
-│   ├── ReactUploadWidget.jsx              — browser, wallet-connected
-│   ├── nextjs-api-route.js                — server-side, dual-mode connection
+│   ├── ReactUploadWidget.jsx              — browser, wallet-connected upload
+│   ├── StakingWidget.jsx                  — browser, stake/withdraw/claimReward + typed-error handling
+│   ├── FileManagerWidget.jsx              — browser, the Metadata client (rename/move/delete/folders/sharing)
+│   ├── nextjs-api-route.js                — server-side, dual-mode connection (upload)
+│   ├── nextjs-payments-api-routes.js      — reference backend for the Payments client
 │   ├── nextjs-metadata-api-routes.js      — reference backend for the Metadata client
 │   └── node-script.mjs                    — plain Node.js, full pipeline
 ├── test_harness.html                  — manual browser test, real SDK + live testnet
