@@ -11,6 +11,11 @@ import InayaKernel, {
   approveFeeTokens,
   retrieveAndReconstruct,
   Staking,
+  InayaError,
+  InayaValidationError,
+  InayaWalletError,
+  InayaContractError,
+  InayaNetworkError,
   type WalletConnection,
   type VaultKey,
 } from "./src/index";
@@ -62,4 +67,25 @@ async function testFullFlow(file: File) {
   const abiLength: number = INAYA_CUSTODY_ABI.length;
 
   return { dataUrl, usdtFee, reward, kernelMethods, custodyAddress, abiLength, stakeResult };
+}
+
+// Error handling — every SDK operation throws one of these instead of a raw
+// ethers/JSON-RPC error; callers can narrow on `instanceof` and rely on `.code`.
+async function testErrorHandling(connection: WalletConnection) {
+  try {
+    await anchorToLedger({ connection, fileName: "x", dataShardAlpha: "a", dataShardBeta: "b" } as any);
+  } catch (err) {
+    if (err instanceof InayaValidationError) {
+      const code: string = err.code;
+      const message: string = err.message;
+    } else if (err instanceof InayaWalletError || err instanceof InayaContractError || err instanceof InayaNetworkError) {
+      const cause: unknown = err.cause;
+    } else if (err instanceof InayaError) {
+      // still a known InayaKernel error, just not one of the more specific subclasses
+    }
+    throw err;
+  }
+
+  const errorClasses = InayaKernel.errors;
+  const isWalletError: typeof InayaWalletError = errorClasses.InayaWalletError;
 }

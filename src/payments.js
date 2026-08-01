@@ -14,22 +14,32 @@
 // relative paths — the normal case for a Next.js app calling its own
 // /api/* routes).
 
+import { InayaValidationError, InayaNetworkError, translateError } from "./errors.js";
+
 async function postJSON(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || `Request to ${url} failed (HTTP ${res.status})`);
-  return data;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
+    return data;
+  } catch (err) {
+    throw translateError(err);
+  }
 }
 
 async function getJSON(url) {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.error || `Request to ${url} failed (HTTP ${res.status})`);
-  return data;
+  try {
+    const res = await fetch(url);
+    const data = await res.json();
+    if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
+    return data;
+  } catch (err) {
+    throw translateError(err);
+  }
 }
 
 /**
@@ -39,7 +49,7 @@ async function getJSON(url) {
  * outside a browser context (e.g. server-side pre-generation) too.
  */
 export async function startCorporateReserveCheckout({ tier, apiBaseUrl = "" }) {
-  if (!tier) throw new Error("startCorporateReserveCheckout: tier is required.");
+  if (!tier) throw new InayaValidationError("startCorporateReserveCheckout: tier is required.");
   const data = await postJSON(`${apiBaseUrl}/api/create-checkout-session`, { tier });
   return { checkoutUrl: data.url };
 }
@@ -52,7 +62,7 @@ export async function startCorporateReserveCheckout({ tier, apiBaseUrl = "" }) {
  */
 export async function startPaygCheckout({ filename, sizeBytes, cidAlpha, cidBeta, fileHash, apiBaseUrl = "" }) {
   if (!filename || !sizeBytes || !cidAlpha || !cidBeta || !fileHash) {
-    throw new Error("startPaygCheckout: filename, sizeBytes, cidAlpha, cidBeta, and fileHash are all required.");
+    throw new InayaValidationError("startPaygCheckout: filename, sizeBytes, cidAlpha, cidBeta, and fileHash are all required.");
   }
   const data = await postJSON(`${apiBaseUrl}/api/create-payg-checkout-session`, { filename, sizeBytes, cidAlpha, cidBeta, fileHash });
   return { checkoutUrl: data.url, quotedUsd: data.quotedUsd };
@@ -65,7 +75,7 @@ export async function startPaygCheckout({ filename, sizeBytes, cidAlpha, cidBeta
  */
 export async function startEgressCheckout({ fileHash, filename, sizeBytes, apiBaseUrl = "" }) {
   if (!fileHash || !filename || !sizeBytes) {
-    throw new Error("startEgressCheckout: fileHash, filename, and sizeBytes are all required.");
+    throw new InayaValidationError("startEgressCheckout: fileHash, filename, and sizeBytes are all required.");
   }
   const data = await postJSON(`${apiBaseUrl}/api/create-egress-checkout-session`, { fileHash, filename, sizeBytes });
   return { checkoutUrl: data.url, quotedUsd: data.quotedUsd, inayaPriceUsdt: data.inayaPriceUsdt };
@@ -77,7 +87,7 @@ export async function startEgressCheckout({ fileHash, filename, sizeBytes, apiBa
  * identifying cookie for this browser. Returns the customer's email.
  */
 export async function resolveCheckoutSession({ sessionId, apiBaseUrl = "" }) {
-  if (!sessionId) throw new Error("resolveCheckoutSession: sessionId is required.");
+  if (!sessionId) throw new InayaValidationError("resolveCheckoutSession: sessionId is required.");
   return getJSON(`${apiBaseUrl}/api/resolve-checkout-session?session_id=${encodeURIComponent(sessionId)}`);
 }
 
@@ -104,7 +114,7 @@ export async function getPaygAssets({ email, apiBaseUrl = "" } = {}) {
 
 /** Checks whether egress has already been paid for a given file. email is optional if the identifying cookie is already set. */
 export async function getEgressUnlockStatus({ fileHash, email, apiBaseUrl = "" }) {
-  if (!fileHash) throw new Error("getEgressUnlockStatus: fileHash is required.");
+  if (!fileHash) throw new InayaValidationError("getEgressUnlockStatus: fileHash is required.");
   const emailPart = email ? `&email=${encodeURIComponent(email)}` : "";
   return getJSON(`${apiBaseUrl}/api/egress-unlock-status?fileHash=${encodeURIComponent(fileHash)}${emailPart}`);
 }

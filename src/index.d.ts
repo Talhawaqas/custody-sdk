@@ -5,6 +5,7 @@ import { generateSecureSalt, deriveVaultKey, disperseAndSlice } from "./crypto";
 import type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo } from "./crypto";
 import type { InayaEventEmitter } from "./utils";
 import type { PaymentsAPI } from "./payments";
+import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError } from "./errors";
 
 /**
  * Pass this whole object in as `connection` to every method that needs one.
@@ -195,9 +196,22 @@ export {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  InayaError,
+  InayaValidationError,
+  InayaWalletError,
+  InayaContractError,
+  InayaNetworkError,
 };
 
 export type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo };
+
+export interface InayaErrorClasses {
+  InayaError: typeof InayaError;
+  InayaValidationError: typeof InayaValidationError;
+  InayaWalletError: typeof InayaWalletError;
+  InayaContractError: typeof InayaContractError;
+  InayaNetworkError: typeof InayaNetworkError;
+}
 
 export interface InayaKernelAPI {
   generateSecureSalt: typeof generateSecureSalt;
@@ -210,6 +224,7 @@ export interface InayaKernelAPI {
   Staking: StakingAPI;
   Payments: PaymentsAPI;
   events: InayaEventEmitter<InayaEventMap>;
+  errors: InayaErrorClasses;
 }
 
 export const InayaKernel: InayaKernelAPI;

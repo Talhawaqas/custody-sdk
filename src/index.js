@@ -24,6 +24,7 @@ import { generateSecureSalt, deriveVaultKey, disperseAndSlice, reconstructAndDec
 import { INAYA_CUSTODY_ABI, INAYA_TOKEN_ABI, INAYA_STAKING_ABI, INAYA_ADDRESSES } from "./contracts.js";
 import { withRetry, InayaEventEmitter } from "./utils.js";
 import { Payments } from "./payments.js";
+import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
 const events = new InayaEventEmitter();
@@ -44,7 +45,7 @@ function isEthersSigner(raw) {
  *  or a plain ethers.Wallet/Signer passed directly (Node.js/server-side usage). */
 async function resolveSigner(connection) {
   const raw = connection?.provider ?? connection;
-  if (!raw) throw new Error("InayaKernel: no provider/signer — call connectWallet() (browser) or pass an ethers.Wallet directly (Node.js) first.");
+  if (!raw) throw new InayaWalletError("No provider/signer — call connectWallet() (browser) or pass an ethers.Wallet directly (Node.js) first.", { code: "NO_CONNECTION" });
   if (isEthersSigner(raw)) return raw; // Node.js: already a Signer
   return new ethers.BrowserProvider(raw).getSigner(); // Browser: EIP-1193 injected provider
 }
@@ -52,9 +53,9 @@ async function resolveSigner(connection) {
 /** Resolves a read-only provider — works with either connection style. */
 function resolveProvider(connection) {
   const raw = connection?.provider ?? connection;
-  if (!raw) throw new Error("InayaKernel: no provider/signer — call connectWallet() (browser) or pass an ethers.Wallet directly (Node.js) first.");
+  if (!raw) throw new InayaWalletError("No provider/signer — call connectWallet() (browser) or pass an ethers.Wallet directly (Node.js) first.", { code: "NO_CONNECTION" });
   if (isEthersSigner(raw)) {
-    if (!raw.provider) throw new Error("InayaKernel: the ethers.Wallet passed as `connection` has no attached provider — construct it as `new ethers.Wallet(privateKey, provider)`.");
+    if (!raw.provider) throw new InayaValidationError("The ethers.Wallet passed as `connection` has no attached provider — construct it as `new ethers.Wallet(privateKey, provider)`.");
     return raw.provider;
   }
   return new ethers.BrowserProvider(raw);
@@ -68,10 +69,17 @@ function resolveProvider(connection) {
  */
 async function connectWallet() {
   if (typeof window === "undefined" || typeof window.ethereum === "undefined") {
-    throw new Error("InayaKernel.connectWallet: no injected Web3 provider found in this browser. For Node.js/server-side usage, pass an ethers.Wallet directly as `connection` instead — see the SDK guide's Node.js example.");
+    throw new InayaWalletError(
+      "No injected Web3 provider found in this browser. For Node.js/server-side usage, pass an ethers.Wallet directly as `connection` instead — see the SDK guide's Node.js example.",
+      { code: "NO_INJECTED_PROVIDER" }
+    );
   }
-  const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-  return { provider: window.ethereum, address: accounts[0] };
+  try {
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    return { provider: window.ethereum, address: accounts[0] };
+  } catch (err) {
+    throw translateError(err, "connectWallet");
+  }
 }
 
 /**
@@ -87,8 +95,8 @@ async function connectWallet() {
  * see the module comment for why.
  */
 async function anchorToLedger({ connection, assetId, fileName, fileSizeBytes, dataShardAlpha, dataShardBeta, custodyAddress = INAYA_ADDRESSES.custody, onProgress }) {
-  if (!custodyAddress) throw new Error("InayaKernel.anchorToLedger: custodyAddress is required (see contracts.js INAYA_ADDRESSES).");
-  if (fileSizeBytes === undefined) throw new Error("InayaKernel.anchorToLedger: fileSizeBytes is required — the contract's fee is computed per-GB from it.");
+  if (!custodyAddress) throw new InayaValidationError("InayaKernel.anchorToLedger: custodyAddress is required (see contracts.js INAYA_ADDRESSES).");
+  if (fileSizeBytes === undefined) throw new InayaValidationError("InayaKernel.anchorToLedger: fileSizeBytes is required — the contract's fee is computed per-GB from it.");
 
   try {
     emitProgress(onProgress, "anchor:progress", { stage: "hashing", fileName });
@@ -108,8 +116,9 @@ async function anchorToLedger({ connection, assetId, fileName, fileSizeBytes, da
     emitProgress(onProgress, "anchor:complete", result);
     return result;
   } catch (err) {
-    events.emit("error", { operation: "anchorToLedger", error: err });
-    throw err;
+    const translated = translateError(err, "anchorToLedger");
+    events.emit("error", { operation: "anchorToLedger", error: translated });
+    throw translated;
   }
 }
 
@@ -123,7 +132,7 @@ async function anchorToLedger({ connection, assetId, fileName, fileSizeBytes, da
  * themselves are never auto-retried.
  */
 async function approveFeeTokens({ connection, fileSizeBytes, custodyAddress = INAYA_ADDRESSES.custody, tokenAddress = INAYA_ADDRESSES.token, usdtAddress, onProgress }) {
-  if (!custodyAddress) throw new Error("InayaKernel.approveFeeTokens: custodyAddress is required.");
+  if (!custodyAddress) throw new InayaValidationError("InayaKernel.approveFeeTokens: custodyAddress is required.");
 
   try {
     emitProgress(onProgress, "approve:progress", { stage: "reading-fees" });
@@ -157,8 +166,9 @@ async function approveFeeTokens({ connection, fileSizeBytes, custodyAddress = IN
     emitProgress(onProgress, "approve:complete", result);
     return result;
   } catch (err) {
-    events.emit("error", { operation: "approveFeeTokens", error: err });
-    throw err;
+    const translated = translateError(err, "approveFeeTokens");
+    events.emit("error", { operation: "approveFeeTokens", error: translated });
+    throw translated;
   }
 }
 
@@ -177,9 +187,9 @@ async function approveFeeTokens({ connection, fileSizeBytes, custodyAddress = IN
  * timeouts that a second attempt often clears on its own.
  */
 async function retrieveAndReconstruct({ connection, fileHash, assetId, passkey, knownFilename, custodyAddress = INAYA_ADDRESSES.custody, fetchShard = defaultFetchShard, onProgress }) {
-  if (!custodyAddress) throw new Error("InayaKernel.retrieveAndReconstruct: custodyAddress is required.");
+  if (!custodyAddress) throw new InayaValidationError("InayaKernel.retrieveAndReconstruct: custodyAddress is required.");
   const resolvedFileHash = fileHash || (assetId ? ethers.id(assetId) : undefined);
-  if (!resolvedFileHash) throw new Error("InayaKernel.retrieveAndReconstruct: pass either fileHash or the original assetId used at anchorToLedger().");
+  if (!resolvedFileHash) throw new InayaValidationError("InayaKernel.retrieveAndReconstruct: pass either fileHash or the original assetId used at anchorToLedger().");
 
   try {
     emitProgress(onProgress, "retrieve:progress", { stage: "reading-chain", fileHash: resolvedFileHash });
@@ -187,7 +197,9 @@ async function retrieveAndReconstruct({ connection, fileHash, assetId, passkey, 
     const contract = new ethers.Contract(custodyAddress, INAYA_CUSTODY_ABI, provider);
 
     const [owner, cidAlpha, cidBeta, timestamp] = await withRetry(() => contract.assets(resolvedFileHash));
-    if (!cidAlpha || !cidBeta || owner === ethers.ZeroAddress) throw new Error(`InayaKernel.retrieveAndReconstruct: no asset found for fileHash "${resolvedFileHash}".`);
+    if (!cidAlpha || !cidBeta || owner === ethers.ZeroAddress) {
+      throw new InayaContractError(`No asset found for fileHash "${resolvedFileHash}".`, { code: "ASSET_NOT_FOUND", operation: "retrieveAndReconstruct" });
+    }
 
     emitProgress(onProgress, "retrieve:progress", { stage: "fetching-shards", fileHash: resolvedFileHash });
     const [shardAlpha, shardBeta] = await Promise.all([
@@ -202,14 +214,15 @@ async function retrieveAndReconstruct({ connection, fileHash, assetId, passkey, 
     emitProgress(onProgress, "retrieve:complete", result);
     return result;
   } catch (err) {
-    events.emit("error", { operation: "retrieveAndReconstruct", error: err });
-    throw err;
+    const translated = translateError(err, "retrieveAndReconstruct");
+    events.emit("error", { operation: "retrieveAndReconstruct", error: translated });
+    throw translated;
   }
 }
 
 async function defaultFetchShard(cid) {
   const res = await fetch(`https://gateway.pinata.cloud/ipfs/${cid}`);
-  if (!res.ok) throw new Error(`InayaKernel: failed to fetch shard ${cid} (HTTP ${res.status})`);
+  if (!res.ok) throw new InayaNetworkError(`Failed to fetch shard ${cid} (HTTP ${res.status})`, { code: "SHARD_FETCH_FAILED", operation: "retrieveAndReconstruct" });
   const json = await res.json();
   return json.shard;
 }
@@ -229,8 +242,8 @@ async function defaultFetchShard(cid) {
  */
 const Staking = {
   async stake({ connection, amount, lockPeriodDays = 0, tokenAddress = INAYA_ADDRESSES.token, stakingAddress = INAYA_ADDRESSES.staking, onProgress }) {
-    if (!tokenAddress || !stakingAddress) throw new Error("InayaKernel.Staking.stake: tokenAddress and stakingAddress are required.");
-    if (![0, 30, 90].includes(lockPeriodDays)) throw new Error("InayaKernel.Staking.stake: lockPeriodDays must be 0 (flexible), 30, or 90.");
+    if (!tokenAddress || !stakingAddress) throw new InayaValidationError("InayaKernel.Staking.stake: tokenAddress and stakingAddress are required.");
+    if (![0, 30, 90].includes(lockPeriodDays)) throw new InayaValidationError("InayaKernel.Staking.stake: lockPeriodDays must be 0 (flexible), 30, or 90.");
     try {
       const signer = await resolveSigner(connection);
       const owner = await signer.getAddress();
@@ -251,15 +264,16 @@ const Staking = {
       emitProgress(onProgress, "stake:complete", result);
       return result;
     } catch (err) {
-      events.emit("error", { operation: "Staking.stake", error: err });
-      throw err;
+      const translated = translateError(err, "Staking.stake");
+      events.emit("error", { operation: "Staking.stake", error: translated });
+      throw translated;
     }
   },
 
   /** Withdraws staked principal only — reverts if still inside the lock period. Call claimReward() separately for pending rewards. */
   async unstake({ connection, amount, stakingAddress = INAYA_ADDRESSES.staking }) {
-    if (!stakingAddress) throw new Error("InayaKernel.Staking.unstake: stakingAddress is required.");
-    if (!amount) throw new Error("InayaKernel.Staking.unstake: amount is required.");
+    if (!stakingAddress) throw new InayaValidationError("InayaKernel.Staking.unstake: stakingAddress is required.");
+    if (!amount) throw new InayaValidationError("InayaKernel.Staking.unstake: amount is required.");
     try {
       const signer = await resolveSigner(connection);
       const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, signer);
@@ -267,14 +281,15 @@ const Staking = {
       const receipt = await tx.wait();
       return { transactionHash: receipt.hash };
     } catch (err) {
-      events.emit("error", { operation: "Staking.unstake", error: err });
-      throw err;
+      const translated = translateError(err, "Staking.unstake");
+      events.emit("error", { operation: "Staking.unstake", error: translated });
+      throw translated;
     }
   },
 
   /** Claims any pending reward balance — separate from unstake(), see the note above. */
   async claimReward({ connection, stakingAddress = INAYA_ADDRESSES.staking }) {
-    if (!stakingAddress) throw new Error("InayaKernel.Staking.claimReward: stakingAddress is required.");
+    if (!stakingAddress) throw new InayaValidationError("InayaKernel.Staking.claimReward: stakingAddress is required.");
     try {
       const signer = await resolveSigner(connection);
       const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, signer);
@@ -282,24 +297,33 @@ const Staking = {
       const receipt = await tx.wait();
       return { transactionHash: receipt.hash };
     } catch (err) {
-      events.emit("error", { operation: "Staking.claimReward", error: err });
-      throw err;
+      const translated = translateError(err, "Staking.claimReward");
+      events.emit("error", { operation: "Staking.claimReward", error: translated });
+      throw translated;
     }
   },
 
   /** Read-only — retries on transient RPC errors. Works with any connection style, no signer needed. */
   async calculateReward({ connection, address, stakingAddress = INAYA_ADDRESSES.staking }) {
-    if (!stakingAddress) throw new Error("InayaKernel.Staking.calculateReward: stakingAddress is required.");
-    const provider = resolveProvider(connection);
-    const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
-    return withRetry(() => staking.earned(address));
+    if (!stakingAddress) throw new InayaValidationError("InayaKernel.Staking.calculateReward: stakingAddress is required.");
+    try {
+      const provider = resolveProvider(connection);
+      const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
+      return await withRetry(() => staking.earned(address));
+    } catch (err) {
+      throw translateError(err, "Staking.calculateReward");
+    }
   },
 
   async getStakedBalance({ connection, address, stakingAddress = INAYA_ADDRESSES.staking }) {
-    if (!stakingAddress) throw new Error("InayaKernel.Staking.getStakedBalance: stakingAddress is required.");
-    const provider = resolveProvider(connection);
-    const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
-    return withRetry(() => staking.userStakedBalance(address));
+    if (!stakingAddress) throw new InayaValidationError("InayaKernel.Staking.getStakedBalance: stakingAddress is required.");
+    try {
+      const provider = resolveProvider(connection);
+      const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
+      return await withRetry(() => staking.userStakedBalance(address));
+    } catch (err) {
+      throw translateError(err, "Staking.getStakedBalance");
+    }
   },
 };
 
@@ -314,6 +338,11 @@ export const InayaKernel = {
   Staking,
   Payments,
   events,
+  errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError },
 };
+
+// Also available as named imports (`import { InayaWalletError } from '@inaya-network/custody-sdk'`)
+// for consumers who'd rather not reach through InayaKernel.errors for instanceof checks.
+export { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError };
 
 export default InayaKernel;
