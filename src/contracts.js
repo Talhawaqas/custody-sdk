@@ -48,14 +48,30 @@ export const INAYA_TOKEN_ABI = [
   "event Approval(address indexed owner, address indexed spender, uint256 value)",
 ];
 
+// Verified directly against contracts/InayaStaking.sol (Synthetix-style
+// reward-per-token accounting with tiered lockup multipliers) — the
+// previous version of this ABI (stake(uint256), unstake(), stakedBalance(),
+// calculateReward()) didn't match a single function on the real deployed
+// contract at INAYA_ADDRESSES.staking; every call through it would have
+// reverted. See SDK_GUIDE.md's known-limitations section for how this was
+// found. onlyOwner admin functions (setRewardRate, fundRewardPool,
+// setEnterpriseTierThreshold, recoverForeignToken) are deliberately excluded,
+// same as this codebase's existing convention for admin-only contract calls.
 export const INAYA_STAKING_ABI = [
-  "function stake(uint256 amount) public",
-  "function unstake() public",
-  "function calculateReward(address user) public view returns (uint256)",
-  "function stakedBalance(address) public view returns (uint256)",
-  "function stakingTimestamp(address) public view returns (uint256)",
-  "event Staked(address indexed user, uint256 amount)",
-  "event Unstaked(address indexed user, uint256 amount, uint256 reward)",
+  "function stake(uint256 amount, uint256 lockPeriodDays) external",
+  "function withdraw(uint256 amount) public",
+  "function claimReward() public",
+  "function exit() external",
+  "function earned(address account) public view returns (uint256)",
+  "function getUserTier(address account) external view returns (string memory)",
+  "function totalStaked() public view returns (uint256)",
+  "function rewardRate() public view returns (uint256)",
+  "function userStakedBalance(address) public view returns (uint256)",
+  "function lockExpiry(address) public view returns (uint256)",
+  "function enterpriseTierThreshold() public view returns (uint256)",
+  "event Staked(address indexed user, uint256 amount, uint256 lockPeriodDays)",
+  "event Withdrawn(address indexed user, uint256 amount)",
+  "event RewardPaid(address indexed user, uint256 reward)",
 ];
 
 // Live deployed addresses for the target network.

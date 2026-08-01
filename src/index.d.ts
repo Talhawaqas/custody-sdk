@@ -107,6 +107,8 @@ export type StakeProgress = { stage: "approving" } | { stage: "staking" };
 export interface StakeParams {
   connection: WalletConnection;
   amount: bigint;
+  /** 0 (flexible, 1.00x), 30, or 90 days — locks in a reward multiplier. @default 0 */
+  lockPeriodDays?: 0 | 30 | 90;
   /** @default INAYA_ADDRESSES.token */
   tokenAddress?: string;
   /** @default INAYA_ADDRESSES.staking */
@@ -115,6 +117,13 @@ export interface StakeParams {
 }
 
 export interface UnstakeParams {
+  connection: WalletConnection;
+  amount: bigint;
+  /** @default INAYA_ADDRESSES.staking */
+  stakingAddress?: string;
+}
+
+export interface ClaimRewardParams {
   connection: WalletConnection;
   /** @default INAYA_ADDRESSES.staking */
   stakingAddress?: string;
@@ -130,7 +139,10 @@ export interface StakingReadParams {
 export interface StakingAPI {
   /** Automatically approves the token allowance first if the current allowance is insufficient. */
   stake(params: StakeParams): Promise<TxResult>;
+  /** Withdraws staked principal only — reverts if still inside the lock period. Call claimReward() separately for pending rewards. */
   unstake(params: UnstakeParams): Promise<TxResult>;
+  /** Claims any pending reward balance — a separate on-chain action from unstake(). */
+  claimReward(params: ClaimRewardParams): Promise<TxResult>;
   /** Read-only, retries on transient RPC errors — safe to call without a signer. */
   calculateReward(params: StakingReadParams): Promise<bigint>;
   /** Read-only, retries on transient RPC errors — safe to call without a signer. */

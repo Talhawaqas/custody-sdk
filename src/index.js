@@ -220,11 +220,17 @@ async function defaultFetchShard(cid) {
  * INAYA transfers carry a fixed micro-fee (transferFee) the caller
  * should be aware of but doesn't need to compute manually.
  * Read-only calls (calculateReward, getStakedBalance) retry on transient
- * RPC errors; stake/unstake transactions themselves do not.
+ * RPC errors; stake/unstake/claimReward transactions themselves do not.
+ *
+ * withdraw() and claimReward() are two separate on-chain actions (the
+ * contract has no combined "unstake and pay out" function) — call
+ * claimReward() explicitly if there's a pending reward, same as the web
+ * dApp's own UI does with separate Withdraw and Claim Rewards buttons.
  */
 const Staking = {
-  async stake({ connection, amount, tokenAddress = INAYA_ADDRESSES.token, stakingAddress = INAYA_ADDRESSES.staking, onProgress }) {
+  async stake({ connection, amount, lockPeriodDays = 0, tokenAddress = INAYA_ADDRESSES.token, stakingAddress = INAYA_ADDRESSES.staking, onProgress }) {
     if (!tokenAddress || !stakingAddress) throw new Error("InayaKernel.Staking.stake: tokenAddress and stakingAddress are required.");
+    if (![0, 30, 90].includes(lockPeriodDays)) throw new Error("InayaKernel.Staking.stake: lockPeriodDays must be 0 (flexible), 30, or 90.");
     try {
       const signer = await resolveSigner(connection);
       const owner = await signer.getAddress();
@@ -239,7 +245,7 @@ const Staking = {
 
       emitProgress(onProgress, "stake:progress", { stage: "staking" });
       const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, signer);
-      const tx = await staking.stake(amount);
+      const tx = await staking.stake(amount, lockPeriodDays);
       const receipt = await tx.wait();
       const result = { transactionHash: receipt.hash };
       emitProgress(onProgress, "stake:complete", result);
@@ -250,16 +256,33 @@ const Staking = {
     }
   },
 
-  async unstake({ connection, stakingAddress = INAYA_ADDRESSES.staking }) {
+  /** Withdraws staked principal only — reverts if still inside the lock period. Call claimReward() separately for pending rewards. */
+  async unstake({ connection, amount, stakingAddress = INAYA_ADDRESSES.staking }) {
     if (!stakingAddress) throw new Error("InayaKernel.Staking.unstake: stakingAddress is required.");
+    if (!amount) throw new Error("InayaKernel.Staking.unstake: amount is required.");
     try {
       const signer = await resolveSigner(connection);
       const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, signer);
-      const tx = await staking.unstake();
+      const tx = await staking.withdraw(amount);
       const receipt = await tx.wait();
       return { transactionHash: receipt.hash };
     } catch (err) {
       events.emit("error", { operation: "Staking.unstake", error: err });
+      throw err;
+    }
+  },
+
+  /** Claims any pending reward balance — separate from unstake(), see the note above. */
+  async claimReward({ connection, stakingAddress = INAYA_ADDRESSES.staking }) {
+    if (!stakingAddress) throw new Error("InayaKernel.Staking.claimReward: stakingAddress is required.");
+    try {
+      const signer = await resolveSigner(connection);
+      const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, signer);
+      const tx = await staking.claimReward();
+      const receipt = await tx.wait();
+      return { transactionHash: receipt.hash };
+    } catch (err) {
+      events.emit("error", { operation: "Staking.claimReward", error: err });
       throw err;
     }
   },
@@ -269,14 +292,14 @@ const Staking = {
     if (!stakingAddress) throw new Error("InayaKernel.Staking.calculateReward: stakingAddress is required.");
     const provider = resolveProvider(connection);
     const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
-    return withRetry(() => staking.calculateReward(address));
+    return withRetry(() => staking.earned(address));
   },
 
   async getStakedBalance({ connection, address, stakingAddress = INAYA_ADDRESSES.staking }) {
     if (!stakingAddress) throw new Error("InayaKernel.Staking.getStakedBalance: stakingAddress is required.");
     const provider = resolveProvider(connection);
     const staking = new ethers.Contract(stakingAddress, INAYA_STAKING_ABI, provider);
-    return withRetry(() => staking.stakedBalance(address));
+    return withRetry(() => staking.userStakedBalance(address));
   },
 };
 
