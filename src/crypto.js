@@ -6,11 +6,24 @@
 // Inaya dApp (page.js: encryptData / decryptData / prepareShardedFile),
 // refactored into the derive-once API documented in the SDK guide
 // instead of re-deriving the key on every call.
+//
+// Uses @noble/hashes + @noble/ciphers instead of crypto.subtle:
+// React Native has no native SubtleCrypto implementation (only
+// crypto.getRandomValues, via react-native-get-random-values), so this
+// SDK would otherwise work in browsers/Node but crash on mobile. noble's
+// primitives are pure JS and produce byte-identical PBKDF2 keys and
+// AES-GCM ciphertext to crypto.subtle (verified against Node's native
+// WebCrypto), so existing shards stay decryptable either way.
 // ============================================================
+
+import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
+import { sha256, sha384, sha512 } from "@noble/hashes/sha2.js";
+import { gcm } from "@noble/ciphers/aes.js";
 
 const PBKDF2_ITERATIONS = 100000;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
+const AES_KEY_BYTES = 32; // 256-bit
 
 function toBase64(bytes) {
   let binary = "";
@@ -43,25 +56,17 @@ export function generateSecureSalt(bytes = SALT_BYTES) {
  * Derives the local PBKDF2 vault key wrapper once, so it can be reused
  * across multiple disperseAndSlice() calls without re-deriving each time.
  */
-const HASH_NAME_MAP = {
-  "HMAC-SHA256": "SHA-256",
-  "HMAC-SHA384": "SHA-384",
-  "HMAC-SHA512": "SHA-512",
+const HASH_FN_MAP = {
+  "HMAC-SHA256": sha256,
+  "HMAC-SHA384": sha384,
+  "HMAC-SHA512": sha512,
 };
 
 export async function deriveVaultKey({ passkey, salt, iterations = PBKDF2_ITERATIONS, algo = "HMAC-SHA256" }) {
   if (!passkey) throw new Error("InayaKernel.deriveVaultKey: passkey is required.");
-  const hash = HASH_NAME_MAP[algo];
-  if (!hash) throw new Error(`InayaKernel.deriveVaultKey: unsupported algo "${algo}". Use one of: ${Object.keys(HASH_NAME_MAP).join(", ")}.`);
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(passkey), { name: "PBKDF2" }, false, ["deriveKey"]);
-  const key = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations, hash },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["encrypt", "decrypt"]
-  );
+  const hashFn = HASH_FN_MAP[algo];
+  if (!hashFn) throw new Error(`InayaKernel.deriveVaultKey: unsupported algo "${algo}". Use one of: ${Object.keys(HASH_FN_MAP).join(", ")}.`);
+  const key = pbkdf2(hashFn, passkey, salt, { c: iterations, dkLen: AES_KEY_BYTES });
   return { key, salt, iterations, algo };
 }
 
@@ -77,13 +82,13 @@ export async function disperseAndSlice({ file, encryptionKey }) {
   const dataUrl = await readFileAsDataURL(file);
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const enc = new TextEncoder();
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, encryptionKey.key, enc.encode(dataUrl));
+  const encrypted = gcm(encryptionKey.key, iv).encrypt(enc.encode(dataUrl));
 
   // Pack salt + iv + ciphertext together so decryption only needs the passkey.
   const combined = new Uint8Array(encryptionKey.salt.length + iv.length + encrypted.byteLength);
   combined.set(encryptionKey.salt, 0);
   combined.set(iv, encryptionKey.salt.length);
-  combined.set(new Uint8Array(encrypted), encryptionKey.salt.length + iv.length);
+  combined.set(encrypted, encryptionKey.salt.length + iv.length);
 
   const cipherTextString = toBase64(combined);
   const midpoint = Math.ceil(cipherTextString.length / 2);
@@ -108,17 +113,8 @@ export async function reconstructAndDecrypt({ shardAlpha, shardBeta, passkey }) 
   const iv = combined.slice(SALT_BYTES, SALT_BYTES + IV_BYTES);
   const encrypted = combined.slice(SALT_BYTES + IV_BYTES);
 
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(passkey), { name: "PBKDF2" }, false, ["deriveKey"]);
-  const key = await crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: PBKDF2_ITERATIONS, hash: "SHA-256" },
-    keyMaterial,
-    { name: "AES-GCM", length: 256 },
-    false,
-    ["decrypt"]
-  );
-
-  const decryptedBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
-  const dataUrl = new TextDecoder().decode(decryptedBuffer);
+  const key = pbkdf2(sha256, passkey, salt, { c: PBKDF2_ITERATIONS, dkLen: AES_KEY_BYTES });
+  const decrypted = gcm(key, iv).decrypt(encrypted);
+  const dataUrl = new TextDecoder().decode(decrypted);
   return dataUrl; // data: URL — same shape the dApp already renders/downloads from
 }
