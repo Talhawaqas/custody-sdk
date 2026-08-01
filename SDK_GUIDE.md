@@ -1,6 +1,6 @@
 # @inaya-network/custody-sdk — Developer Guide
 
-**Version:** 1.0.4-beta · **Last updated:** July 31, 2026 · BNB Chain Testnet
+**Version:** 1.0.4-beta · **Last updated:** August 1, 2026 · BNB Chain Testnet
 
 A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard, anchor, and reconstruct files against the live testnet, with full TypeScript support, robustness features, and a client for the card-payment (no-wallet) flow.
 
@@ -129,7 +129,36 @@ import { withRetry } from "@inaya-network/custody-sdk/src/utils.js";
 await withRetry(() => someOperation(), { retries: 5, baseDelayMs: 1000 });
 ```
 
-## 7. The Payments Client — Card Payments, No Wallet
+## 7. Error Handling
+
+Every InayaKernel operation throws one of five typed errors instead of a raw ethers/JSON-RPC/wallet error, so you can branch on `instanceof` and a stable `.code` instead of pattern-matching message strings:
+
+```js
+import { InayaKernel, InayaWalletError, InayaContractError } from "@inaya-network/custody-sdk";
+
+try {
+  await InayaKernel.anchorToLedger({ connection, fileName, fileSizeBytes, dataShardAlpha, dataShardBeta });
+} catch (err) {
+  if (err instanceof InayaWalletError) {
+    // user rejected in their wallet, insufficient funds, or a malformed connection object
+  } else if (err instanceof InayaContractError) {
+    // reverted, or gas estimation failed because it would have — err.code tells you which
+  }
+  console.error(err.message, err.code, err.cause); // .cause is always the original ethers/RPC error
+}
+```
+
+| Class | `.code` examples | Meaning |
+|---|---|---|
+| `InayaValidationError` | `VALIDATION_ERROR` | Bad/missing arguments — caught before anything touched a wallet or the network. |
+| `InayaWalletError` | `USER_REJECTED`, `INSUFFICIENT_FUNDS`, `NO_CONNECTION`, `INVALID_CONNECTION` | The connected wallet rejected, is missing, or can't cover the transaction. |
+| `InayaContractError` | `CONTRACT_REVERTED`, `GAS_ERROR`, `ASSET_NOT_FOUND` | The contract reverted, or gas estimation failed because it would have. |
+| `InayaNetworkError` | `NETWORK_ERROR`, `SHARD_FETCH_FAILED`, `HTTP_5xx` | Transient RPC/network/IPFS-gateway failure — the same class `withRetry()` already retries automatically before ever surfacing one of these. |
+| `InayaError` | — | Base class every one of the above extends; catch this alone if you don't need to distinguish which kind. |
+
+All five are also available via `InayaKernel.errors.*` if you'd rather not add named imports. `translateError()` (exported from `src/errors.js` for advanced use) is idempotent — safe to call on anything, including an error that's already one of these.
+
+## 8. The Payments Client — Card Payments, No Wallet
 
 **Critical to understand before using this:** `InayaKernel.Payments` is a client for backend routes **you deploy yourself**. It contains zero payment logic, zero secrets — every function just calls `fetch()` against routes like `/api/create-payg-checkout-session`. The actual Stripe/treasury-wallet/database logic lives server-side in your own Next.js API routes (see the `backend-demo` folder in this repo for the reference implementation).
 
@@ -158,7 +187,7 @@ await InayaKernel.Payments.whoAmI({ apiBaseUrl: "https://inayanetwork.com" });
 
 **Full method list:** `startCorporateReserveCheckout`, `startPaygCheckout`, `startEgressCheckout`, `resolveCheckoutSession`, `whoAmI`, `getCorporatePlanStatus`, `getPaygAssets`, `getEgressUnlockStatus`.
 
-## 8. TypeScript
+## 9. TypeScript
 
 Fully typed — every function, every event payload. No `@types` package needed; the `.d.ts` files ship alongside the source.
 
@@ -174,14 +203,14 @@ Verify your own integration compiles correctly against these types:
 npx tsc --noEmit --strict your-file.ts
 ```
 
-## 9. Testing This SDK Yourself
+## 10. Testing This SDK Yourself
 
 - **`test_harness.html`** — a browser-based manual test harness. Imports the *real* SDK files directly (not a reimplementation), covering wallet connect → encrypt/shard → anchor → retrieve → Payments client, against the live testnet. Serve with `npx serve .` and open in a browser (must be `http://localhost`, not a raw IP — Web Crypto requires a secure context).
 - **`test_crypto_roundtrip.mjs`** — pure Node.js, no wallet needed, verifies the encrypt/decrypt round trip.
 - **`diagnostic_check.mjs`** — pure Node.js, no wallet, checks whether the live contract/RPC are reachable and correctly configured — useful for isolating "is this my network/wallet, or the contract itself" when something's not working.
 - **`type_check_test.ts`** — validates the `.d.ts` files actually compile against realistic usage; run with the same `tsc --noEmit --strict` command shown above.
 
-## 10. Known Limitations — Read Before Reporting a Bug
+## 11. Known Limitations — Read Before Reporting a Bug
 
 1. **Egress has no on-chain enforcement.** Retrieval (`assets()`) is a public read; nothing in the deployed contract gates it. The `Payments.getEgressUnlockStatus`/`startEgressCheckout` pair is an *application-level* gate for card customers only — bypassable by anyone who already knows a `fileHash` and queries the chain/IPFS directly. Wallet-connected users currently have no egress gate of any kind.
 2. **`InayaNetwork` (a second registry contract) is deployed but unused.** All reads/writes in this SDK go through `InayaCustody` exclusively — don't assume `INAYA_ADDRESSES.network` is part of the active data path.
@@ -189,7 +218,7 @@ npx tsc --noEmit --strict your-file.ts
 4. **Webhook idempotency is not implemented** on the reference backend. A Stripe retry could theoretically re-run an on-chain settlement twice for the same payment — worth adding before any real (non-testnet) usage.
 5. **(Fixed 2026-08-01) `INAYA_STAKING_ABI` didn't match the deployed `InayaStaking` contract.** The previous ABI (`stake(uint256)`, `unstake()`, `calculateReward()`, `stakedBalance()`) shared none of its function names with the real contract at `INAYA_ADDRESSES.staking` — every `Staking.*` call would have reverted. Found while wiring the mobile app's Staking screen against the same address and cross-checked directly against `contracts/InayaStaking.sol`. Replaced with the verified-correct ABI (`stake(amount, lockPeriodDays)`, `withdraw(amount)`, `claimReward()`, `earned()`, `userStakedBalance()`, `getUserTier()`, `totalStaked()`, `rewardRate()`, `lockExpiry()`, `enterpriseTierThreshold()`), and updated `Staking.stake/unstake/calculateReward/getStakedBalance` accordingly. Two behavior changes worth flagging for existing callers: `stake()` now takes an optional `lockPeriodDays` (0/30/90, default 0); `unstake()` now requires an `amount` (the real contract's `withdraw()` takes a partial amount, not an all-or-nothing exit) and no longer also pays out rewards — call the new `Staking.claimReward()` separately for that, matching the real contract's separate `withdraw()`/`claimReward()` functions. `INAYA_CUSTODY_ABI` and `INAYA_TOKEN_ABI` were checked against the same real contract sources (`InayaToken.sol`) and the web dApp's own contract calls and don't have this problem — both match exactly.
 
-## 11. Package Contents Reference
+## 12. Package Contents Reference
 
 ```
 custody-sdk/
