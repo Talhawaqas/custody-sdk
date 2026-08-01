@@ -125,23 +125,28 @@ document.getElementById("btnEncrypt").onclick = async () => {
 
 document.getElementById("btnAnchor").onclick = async () => {
   try {
+    // 1. Dono shards ka actual combined length nikal le
+    const totalPayloadSize = sharded.shardAlpha.length + sharded.shardBeta.length;
+
+    // 2. Approve ke liye actual sharded size pass kar
     const fees = await InayaKernel.approveFeeTokens({
       connection,
-      fileSizeBytes,
+      fileSizeBytes: totalPayloadSize, 
       onProgress: (p) => log("logAnchor", `<span class="stage">// ${p.stage}</span>`),
     });
     log("logAnchor", `Computed fee: usdt=${fees.usdtFee} inaya=${fees.inayaFee}`);
 
+    // 3. Ledger anchor ke liye bhi exact sharded size pass kar
     const receipt = await InayaKernel.anchorToLedger({
       connection,
       fileName: filename,
-      fileSizeBytes,
+      fileSizeBytes: totalPayloadSize, 
       dataShardAlpha: sharded.shardAlpha,
       dataShardBeta: sharded.shardBeta,
       onProgress: (p) => log("logAnchor", `<span class="stage">// ${p.stage}</span>`),
     });
+    
     fileHash = receipt.fileHash;
-
     log("logAnchor", `✅ Confirmed: tx ${receipt.transactionHash}`, "ok");
     log("logAnchor", `View: https://testnet.bscscan.com/tx/${receipt.transactionHash}`);
     document.getElementById("btnRetrieve").disabled = false;

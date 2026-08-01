@@ -21,6 +21,8 @@ import InayaKernel, {
 } from "./src/index";
 
 import { INAYA_ADDRESSES, INAYA_CUSTODY_ABI } from "./src/contracts";
+import { Metadata } from "./src/metadata";
+import type { FileMetadataRecord, FolderRecord } from "./src/metadata";
 
 async function testFullFlow(file: File) {
   // Crypto
@@ -88,4 +90,23 @@ async function testErrorHandling(connection: WalletConnection) {
 
   const errorClasses = InayaKernel.errors;
   const isWalletError: typeof InayaWalletError = errorClasses.InayaWalletError;
+}
+
+// Module 1 — off-chain mutable metadata layer (rename/move/delete, virtual
+// folders, sharing). Custody's batchRegisterAssets() is write-once on-chain
+// (verified directly against the deployed contract — see SDK_GUIDE.md), so
+// these calls never touch the chain themselves; they're authenticated via a
+// wallet signature instead (see metadata.js's signMetadataAction()).
+async function testMetadataLayer(connection: WalletConnection, fileHash: string) {
+  const renamed: FileMetadataRecord = await InayaKernel.Metadata.renameFile({ connection, fileHash, newName: "renamed.txt" });
+  const folder: FolderRecord = await InayaKernel.Metadata.createFolder({ connection, name: "Invoices" });
+  const moved: FileMetadataRecord = await Metadata.moveFile({ connection, fileHash, folderId: folder.folderId });
+
+  const { files } = await InayaKernel.Metadata.listFiles({ owner: renamed.owner, folderId: folder.folderId });
+  const filenames: string[] = files.map((f) => f.filename);
+
+  await InayaKernel.Metadata.shareFile({ connection, fileHash, granteeAddress: "0x0000000000000000000000000000000000dEaD", wrappedVaultKey: "opaque-blob" });
+  const { shares } = await InayaKernel.Metadata.listSharedWithMe({ owner: renamed.owner });
+
+  return { renamed, moved, filenames, shares };
 }

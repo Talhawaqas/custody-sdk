@@ -5,6 +5,7 @@ import { generateSecureSalt, deriveVaultKey, disperseAndSlice } from "./crypto";
 import type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo } from "./crypto";
 import type { InayaEventEmitter } from "./utils";
 import type { PaymentsAPI } from "./payments";
+import type { MetadataAPI } from "./metadata";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError } from "./errors";
 
 /**
@@ -167,6 +168,7 @@ export function retrieveAndReconstruct(params: RetrieveAndReconstructParams): Pr
 
 export const Staking: StakingAPI;
 export const Payments: PaymentsAPI;
+export const Metadata: MetadataAPI;
 
 /**
  * Every event InayaKernel.events can emit, mapped to its exact payload shape.
@@ -223,6 +225,7 @@ export interface InayaKernelAPI {
   retrieveAndReconstruct: typeof retrieveAndReconstruct;
   Staking: StakingAPI;
   Payments: PaymentsAPI;
+  Metadata: MetadataAPI;
   events: InayaEventEmitter<InayaEventMap>;
   errors: InayaErrorClasses;
 }
