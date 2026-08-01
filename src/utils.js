@@ -37,6 +37,10 @@ export async function withRetry(fn, { retries = 3, baseDelayMs = 500, isRetryabl
 export function defaultIsRetryable(err) {
   const code = err?.code;
   if (code === "CALL_EXCEPTION" || code === "ACTION_REJECTED" || code === "INSUFFICIENT_FUNDS") return false;
+  // HTTP_5xx (payments.js/metadata.js's own backend-route errors) are server-side and
+  // typically transient — retry them. HTTP_4xx (bad request, unauthorized, not found, etc.)
+  // is a client-side problem retrying can't fix, so those deliberately fall through to false.
+  if (typeof code === "string" && /^HTTP_5\d\d$/.test(code)) return true;
   const msg = (err?.message || "").toLowerCase();
   return (
     code === "NETWORK_ERROR" ||

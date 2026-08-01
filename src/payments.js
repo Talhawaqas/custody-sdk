@@ -15,6 +15,14 @@
 // /api/* routes).
 
 import { InayaValidationError, InayaNetworkError, translateError } from "./errors.js";
+import { withRetry } from "./utils.js";
+
+// POSTs (checkout/session creation) are never auto-retried — same rationale
+// as anchorToLedger() in index.js: a POST that "failed" client-side may
+// have already applied server-side (e.g. a Stripe session already created),
+// so blindly resubmitting risks duplicating it. GETs are read-only and
+// idempotent, so — like every other read in index.js — they retry
+// automatically on transient network failures.
 
 async function postJSON(url, body) {
   try {
@@ -33,10 +41,12 @@ async function postJSON(url, body) {
 
 async function getJSON(url) {
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
-    return data;
+    return await withRetry(async () => {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
+      return data;
+    });
   } catch (err) {
     throw translateError(err);
   }

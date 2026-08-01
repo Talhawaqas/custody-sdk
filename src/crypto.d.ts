@@ -3,9 +3,11 @@
 
 export type HashAlgo = "HMAC-SHA256" | "HMAC-SHA384" | "HMAC-SHA512";
 
-/** Result of deriveVaultKey() — pass this whole object into disperseAndSlice(). */
+/** Result of deriveVaultKey() — pass this whole object into disperseAndSlice(). `key` is a raw
+ *  derived byte array (from @noble/hashes' pbkdf2), not a Web Crypto CryptoKey — this SDK doesn't
+ *  use crypto.subtle at all, so it works in React Native, which has no SubtleCrypto implementation. */
 export interface VaultKey {
-  key: CryptoKey;
+  key: Uint8Array;
   salt: Uint8Array;
   iterations: number;
   algo: HashAlgo;

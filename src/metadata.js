@@ -43,6 +43,14 @@
 // implementing all four checks.
 
 import { InayaValidationError, InayaNetworkError, InayaWalletError, translateError } from "./errors.js";
+import { withRetry } from "./utils.js";
+
+// POSTs mutate (rename/move/delete/share) and are never auto-retried, same
+// rationale as anchorToLedger()/approveFeeTokens() in index.js: a POST that
+// "failed" client-side may have already applied server-side, so blindly
+// resubmitting could double-apply a mutation. GETs are read-only and
+// idempotent, so — like every other read in index.js — they retry
+// automatically on transient network failures.
 
 async function postJSON(url, body) {
   try {
@@ -61,10 +69,12 @@ async function postJSON(url, body) {
 
 async function getJSON(url) {
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
-    return data;
+    return await withRetry(async () => {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) throw new InayaNetworkError(data?.error || `Request to ${url} failed (HTTP ${res.status})`, { code: `HTTP_${res.status}` });
+      return data;
+    });
   } catch (err) {
     throw translateError(err);
   }
