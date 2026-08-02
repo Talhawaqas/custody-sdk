@@ -21,9 +21,10 @@ npx create-inaya-dapp my-app --template vault
 
 | Name | What it is |
 |---|---|
-| `vault` | **Inaya Vault Template** — a decentralized personal storage app: wallet connect (wagmi/viem), passkey-based client-side encryption, drag-and-drop upload, on-chain anchoring. Fully wired and functional once you add a Pinata JWT. |
+| `vault` (default) | **Inaya Vault Template** — a decentralized personal storage app: wallet connect (wagmi/viem), passkey-based client-side encryption, drag-and-drop upload, on-chain anchoring. Fully wired and functional once you add a Pinata JWT. |
+| `media` | **Inaya Media Viewer Template** — the read counterpart to `vault`: fetch an already-anchored asset by `fileHash`, decrypt it locally via `retrieveAndReconstruct()`, and render a type-appropriate preview (image/video/audio/PDF). No Pinata JWT needed — this one only reads. |
 
-**Not yet built:** the "Inaya Media dApp" template (fetch + decrypt assets for viewing) from the original scope of work. Rather than ship a half-working second template alongside a solid first one, it's left as a clearly-scoped follow-up — it would reuse this same template's wallet/SDK wiring, plus `InayaKernel.retrieveAndReconstruct()` for the fetch/decrypt/render side.
+Both templates work together: anchor a file with `vault`, then view it back with `media` using the resulting `fileHash`.
 
 ## How this works
 

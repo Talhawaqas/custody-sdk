@@ -6,13 +6,17 @@ This monorepo (npm workspaces) hosts the SDK's surrounding ecosystem, alongside 
 |---|---|---|
 | [`react`](./react) | `@inaya-network/react` — drop-in React + Tailwind components (`InayaConnect`, `InayaUploader`, `InayaFileBrowser`). | [npm](https://www.npmjs.com/package/@inaya-network/react) |
 | [`cli`](./cli) | `inaya-cli` — terminal/CI-CD tool (`inaya login` / `upload` / `list`). | [npm](https://www.npmjs.com/package/inaya-cli) |
-| [`create-inaya-dapp`](./create-inaya-dapp) | `npx create-inaya-dapp` scaffolding tool + the Inaya Vault starter template. | [npm](https://www.npmjs.com/package/create-inaya-dapp) |
+| [`create-inaya-dapp`](./create-inaya-dapp) | `npx create-inaya-dapp` scaffolding tool + both starter templates (Vault + Media Viewer). | [npm](https://www.npmjs.com/package/create-inaya-dapp) |
 
 All three are live on the public npm registry as of 2026-08-02, verified working with real end-to-end tests, not just "it typechecks":
 
 - `react`: bundle-checked with esbuild.
 - `cli`: a full `login` → encrypt-at-rest → decrypt round trip was actually run against a throwaway test wallet (never a real key), including a deliberate wrong-password case to confirm it fails safely.
-- `create-inaya-dapp`: actually scaffolded a project into a temp directory and verified the name substitution, `.env.local` copy, and both error paths (existing directory, missing project name).
+- `create-inaya-dapp`: actually scaffolded a project from each template (`vault` and `media`) into a temp directory and verified the name substitution, `.env.local` copy, and both error paths (existing directory, missing project name).
+
+## Module 3 — done
+
+Both templates from the original scope are now built: `vault` (write/upload) and `media` (read/view — fetch an anchored asset by `fileHash` and decrypt it via `retrieveAndReconstruct()`, with a type-appropriate preview for images/video/audio/PDF). They're designed to pair together — anchor with one, view with the other.
 
 ## Module 4 — done
 

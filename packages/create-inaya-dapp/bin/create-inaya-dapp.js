@@ -59,5 +59,7 @@ console.log(`Created ${projectName} from the "${templateName}" template.\n`);
 console.log("Next steps:");
 console.log(`  cd ${projectName}`);
 console.log("  npm install");
-console.log("  # fill in .env.local (Pinata JWT, WalletConnect project ID, etc.)");
+if (fs.existsSync(envExamplePath)) {
+  console.log("  # fill in .env.local -- see that file's comments for what each template actually needs");
+}
 console.log("  npm run dev");
