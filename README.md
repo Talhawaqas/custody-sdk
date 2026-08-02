@@ -44,6 +44,10 @@ See [SDK_GUIDE.md §3](./SDK_GUIDE.md#3-quick-start--browser-wallet-connected-up
 
 Runnable examples for React (upload, staking, file management), Next.js (all three backend clients), and plain Node.js are in [`examples/`](./examples).
 
+## The wider ecosystem
+
+This repo is also a monorepo for the tooling built on top of the SDK — see [`packages/`](./packages) for `@inaya-network/react` (drop-in UI components), `inaya-cli` (terminal/CI-CD tool), and `create-inaya-dapp` (project scaffolding).
+
 ## Contributing
 
 Bug reports, feature requests, and pull requests are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for how this repo is organized and what a good PR looks like. Please also read the [Code of Conduct](./CODE_OF_CONDUCT.md). Issues labeled [`good first issue`](https://github.com/Talhawaqas/custody-sdk/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are a good place to start.

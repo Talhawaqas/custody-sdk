@@ -1,0 +1,39 @@
+{
+  "name": "@inaya-network/react",
+  "version": "0.1.0",
+  "description": "Drop-in React + Tailwind components for @inaya-network/custody-sdk — InayaUploader, InayaFileBrowser, InayaConnect.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "peerDependencies": {
+    "@inaya-network/custody-sdk": "*",
+    "ethers": "^6.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "inaya",
+    "react",
+    "tailwind",
+    "web3",
+    "ui-kit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talhawaqas/custody-sdk.git",
+    "directory": "packages/react"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "inaya-cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for @inaya-network/custody-sdk — encrypt, shard, and anchor files to the Inaya DePIN network from a terminal or CI/CD pipeline.",
+  "type": "module",
+  "bin": {
+    "inaya": "./bin/inaya.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "inaya",
+    "cli",
+    "depin",
+    "web3",
+    "storage"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Talhawaqas/custody-sdk.git",
+    "directory": "packages/cli"
+  },
+  "dependencies": {
+    "@inaya-network/custody-sdk": "file:../..",
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^2.2.0",
+    "commander": "^12.0.0",
+    "ethers": "^6.0.0"
+  }
+}
