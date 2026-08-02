@@ -4,7 +4,7 @@
   "description": "npx scaffolding tool for Inaya Network dApps -- pre-wires a Next.js app with @inaya-network/custody-sdk, @inaya-network/react, Tailwind, and wagmi/viem.",
   "type": "module",
   "bin": {
-    "create-inaya-dapp": "./bin/create-inaya-dapp.js"
+    "create-inaya-dapp": "bin/create-inaya-dapp.js"
   },
   "engines": {
     "node": ">=18"
@@ -19,7 +19,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Talhawaqas/custody-sdk.git",
+    "url": "git+https://github.com/Talhawaqas/custody-sdk.git",
     "directory": "packages/create-inaya-dapp"
   },
   "files": [

@@ -62,3 +62,13 @@ Needs the same reference backend routes documented in `custody-sdk/examples/next
 ## What this package does NOT do
 
 Same as the SDK it wraps: no secrets, no bundled backend. `InayaUploader` needs a `pinShard` implementation you provide; `InayaFileBrowser` needs the Metadata backend routes deployed. This package is the UI layer only.
+
+## Storybook
+
+```bash
+npm run storybook        # live dev server at localhost:6006
+npm run build-storybook  # static site -> storybook-static/
+```
+
+Every push to `main` that touches this package auto-deploys the latest Storybook to GitHub Pages via `.github/workflows/storybook.yml`. Stories intentionally show each component's real initial/idle state rather than mocking a live wallet or backend — `InayaFileBrowser`'s story, for instance, shows its actual "failed to fetch" error state when no real `apiBaseUrl` is configured, which is expected in isolation, not a bug.
+

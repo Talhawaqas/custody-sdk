@@ -11,6 +11,10 @@
       "default": "./src/index.js"
     }
   },
+  "scripts": {
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
   "peerDependencies": {
     "@inaya-network/custody-sdk": "*",
     "ethers": "^6.0.0",
@@ -30,10 +34,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Talhawaqas/custody-sdk.git",
+    "url": "git+https://github.com/Talhawaqas/custody-sdk.git",
     "directory": "packages/react"
   },
   "devDependencies": {
-    "typescript": "^5.9.3"
+    "@storybook/react-vite": "^10.5.5",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@vitejs/plugin-react": "^6.0.5",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.25",
+    "storybook": "^10.5.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.0"
   }
 }
