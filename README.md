@@ -46,7 +46,15 @@ Runnable examples for React (upload, staking, file management), Next.js (all thr
 
 ## The wider ecosystem
 
-This repo is also a monorepo for the tooling built on top of the SDK — see [`packages/`](./packages) for `@inaya-network/react` (drop-in UI components), `inaya-cli` (terminal/CI-CD tool), and `create-inaya-dapp` (project scaffolding).
+This repo is also a monorepo for the tooling built on top of the SDK — see [`packages/`](./packages) for `@inaya-network/react` (drop-in UI components), `inaya-cli` (terminal/CI-CD tool), and `create-inaya-dapp` (project scaffolding). All three are published and installable now:
+
+```bash
+npm install @inaya-network/react
+npm install -g inaya-cli
+npx create-inaya-dapp my-app
+```
+
+Component documentation lives in a live Storybook, auto-deployed from `packages/react` on every push.
 
 ## Contributing
 
