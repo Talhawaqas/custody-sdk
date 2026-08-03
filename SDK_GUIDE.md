@@ -1,6 +1,6 @@
 # @inaya-network/custody-sdk — Developer Guide
 
-**Version:** 1.0.4-beta · **Last updated:** August 1, 2026 · BNB Chain Testnet
+**Version:** 1.0.4-beta · **Last updated:** August 3, 2026 · BNB Chain Testnet
 
 A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard, anchor, and reconstruct files against the live testnet, with full TypeScript support, robustness features, a client for the card-payment (no-wallet) flow, and an off-chain layer for rename/move/delete/share operations the on-chain contract itself doesn't support.
 
@@ -26,12 +26,13 @@ Check back here or watch for an announcement before assuming that command works.
 
 ## 2. What This SDK Actually Does
 
-Three layers, each independently usable:
+Five layers, each independently usable:
 
 1. **Crypto** (`crypto.js`) — client-side AES-GCM-256 encryption and binary sharding. Works in browsers *and* plain Node.js (verified — `readFileAsDataURL` uses the portable `file.arrayBuffer()` API, not the browser-only `FileReader`).
 2. **On-chain** (`index.js`) — wraps `InayaCustody`'s `batchRegisterAssets`/`assets` calls and `InayaStaking` (see `InayaKernel.Staking` — `stake`/`unstake`/`claimReward`/`calculateReward`/`getStakedBalance`; `examples/StakingWidget.jsx` is a complete browser client). Supports **dual-mode connections**: a browser wallet (via `connectWallet()`) or a server-held `ethers.Wallet` passed directly — the same pattern the actual Inaya backend uses to sign on a card customer's behalf.
 3. **Payments** (`payments.js`) — a typed client for the card-payment backend routes (Corporate Reserve, PAYG, egress checkouts). **Does not contain any secrets** — it only calls `fetch()` against routes you deploy yourself.
-4. **Metadata** (`metadata.js`) — a typed client for rename/move/delete/virtual-folders/sharing, the same "zero secrets, bring-your-own-backend" shape as Payments. Exists because `InayaCustody.batchRegisterAssets()` is write-once on-chain (see §12's known limitations for how this was verified) — this module fills the gap with a server-backed layer authenticated by wallet signatures, not on-chain transactions.
+4. **Metadata** (`metadata.js`) — a typed client for rename/move/delete/virtual-folders/sharing, the same "zero secrets, bring-your-own-backend" shape as Payments. Exists because `InayaCustody.batchRegisterAssets()` is write-once on-chain (see §13's known limitations for how this was verified) — this module fills the gap with a server-backed layer authenticated by wallet signatures, not on-chain transactions.
+5. **Analytics** (`analytics.js`) — per-wallet storage statistics (`InayaKernel.Analytics.getWalletStorageStats()`), built entirely on data the SDK can already read. No new on-chain calls, no new backend beyond Metadata's existing `list-files` route. See §10 for the real constraints this works within (no on-chain file enumeration, no on-chain file-size field) and how it stays honest about them rather than fabricating numbers.
 
 ## 3. Quick Start — Browser, Wallet-Connected Upload
 
@@ -193,7 +194,7 @@ await InayaKernel.Payments.whoAmI({ apiBaseUrl: "https://inayanetwork.com" });
 
 ## 9. The Metadata Client — Rename/Move/Delete, Virtual Folders, Sharing
 
-**Why this exists:** `InayaCustody.batchRegisterAssets()` is a write-once operation. This was confirmed directly against the live deployed contract — six plausible mutation function names (`deleteAsset`, `removeAsset`, `updateAsset`, `renameAsset`, `setAsset`, `unregisterAsset`) all cleanly reverted with empty data (the "no such function selector, no fallback" signature) against a live `eth_call`, while the real `assets(bytes32)` call succeeded normally even for a nonexistent key — see §12's known-limitations entry for the full trail. There is no on-chain way to rename, move, or delete a registered asset, so `InayaKernel.Metadata` fills that gap the same way `Payments` fills the card-payment gap: **a typed `fetch()` client with zero secrets and zero storage of its own** — the actual database lives in routes you deploy yourself (see `examples/nextjs-metadata-api-routes.js` for a complete reference implementation).
+**Why this exists:** `InayaCustody.batchRegisterAssets()` is a write-once operation. This was confirmed directly against the live deployed contract — six plausible mutation function names (`deleteAsset`, `removeAsset`, `updateAsset`, `renameAsset`, `setAsset`, `unregisterAsset`) all cleanly reverted with empty data (the "no such function selector, no fallback" signature) against a live `eth_call`, while the real `assets(bytes32)` call succeeded normally even for a nonexistent key — see §13's known-limitations entry for the full trail. There is no on-chain way to rename, move, or delete a registered asset, so `InayaKernel.Metadata` fills that gap the same way `Payments` fills the card-payment gap: **a typed `fetch()` client with zero secrets and zero storage of its own** — the actual database lives in routes you deploy yourself (see `examples/nextjs-metadata-api-routes.js` for a complete reference implementation).
 
 The fileHash and the encrypted shards themselves are **never** mutated by this module — only display name, folder placement, soft-delete state, and share grants live off-chain.
 
@@ -213,9 +214,22 @@ await InayaKernel.Metadata.deleteFile({ connection, fileHash }); // soft delete 
 const { files } = await InayaKernel.Metadata.listFiles({ owner: address, folderId: folder.folderId });
 const { folders } = await InayaKernel.Metadata.listFolders({ owner: address });
 
-// Share a file with another wallet (you re-wrap the vault key yourself — this module just stores the grant):
-await InayaKernel.Metadata.shareFile({ connection, fileHash, granteeAddress: "0x...", wrappedVaultKey });
-const { shares } = await InayaKernel.Metadata.listSharedWithMe({ owner: address });
+// Sharing (built 2026-08-03 — see §13 for the full story on how this replaced
+// MetaMask's deprecated eth_getEncryptionPublicKey/eth_decrypt):
+// 1. The RECIPIENT registers a sharing key once, ever (idempotent after that):
+await InayaKernel.Metadata.registerEncryptionKey({ connection: recipientConnection });
+
+// 2. The OWNER shares — looks up the recipient's key, encrypts the passkey for them,
+//    and stores the result, all inside this one call:
+await InayaKernel.Metadata.shareFile({ connection, fileHash, granteeAddress: "0x...", passkey });
+
+// 3. The RECIPIENT recovers the passkey, then decrypts the file exactly like the owner would:
+const { passkey: recoveredPasskey } = await InayaKernel.Metadata.getSharedFileKey({ connection: recipientConnection, fileHash });
+// ...then fetch shardAlpha/shardBeta (e.g. via retrieveAndReconstruct()) and call
+// InayaKernel.reconstructAndDecrypt({ shardAlpha, shardBeta, passkey: recoveredPasskey }).
+
+const { shares } = await InayaKernel.Metadata.listSharedWithMe({ owner: recipientAddress });
+await InayaKernel.Metadata.revokeShare({ connection, fileHash, granteeAddress: "0x..." }); // see the caveat below
 ```
 
 **Security model — read this before deploying a backend for this module.** Every mutating call is authenticated by a wallet signature (`personal_sign` over a canonical message), never a bare address in the request body. Your backend route must, before applying any mutation:
@@ -227,11 +241,40 @@ const { shares } = await InayaKernel.Metadata.listSharedWithMe({ owner: address 
 
 Skipping step 4 in particular means anyone who learns a `fileHash` could rename, move, or delete someone else's file metadata — the fileHash alone proves nothing about who's allowed to mutate it.
 
-**Full method list:** `registerFileMetadata`, `renameFile`, `moveFile`, `deleteFile`, `restoreFile`, `listFiles`, `createFolder`, `renameFolder`, `moveFolder`, `deleteFolder`, `listFolders`, `shareFile`, `revokeShare`, `listSharedWithMe`.
+**Sharing's key exchange — how it actually works, and its honest limits.** `shareFile()` no longer takes a pre-built `wrappedVaultKey` you had to construct yourself (there was never a way to actually do that correctly before this was built) — it does the whole exchange internally:
 
-See `examples/FileManagerWidget.jsx` for a complete browser-based client using all of the above against the reference backend in `examples/nextjs-metadata-api-routes.js`.
+- The recipient's wallet deterministically derives an X25519 keypair by signing one fixed message via `personal_sign` (`Metadata.deriveShareKeypair()` / `registerEncryptionKey()`) — the same wallet always reproduces the same keypair, so nothing needs to be stored client-side beyond the wallet itself.
+- `shareFile()` looks up the recipient's registered public key and encrypts the owner's passkey for it using an ephemeral-sender X25519 + HKDF-SHA256 + XChaCha20-Poly1305 "sealed box" (`crypto.js`'s `encryptForPublicKey()` — the same construction as libsodium's `crypto_box_seal`).
+- **This deliberately does not use MetaMask's `eth_getEncryptionPublicKey`/`eth_decrypt`.** Verified via web search before building (2026-08-03): those methods have been deprecated since 2022, the underlying EIP-1024 was abandoned, MetaMask itself no longer recommends them, and there's no evidence they work over WalletConnect-style connections — which is exactly how this project's mobile app connects (MetaMask Connect Multichain). Relying on them would likely have made sharing silently broken on mobile. `personal_sign` works identically everywhere, so that's what the recipient's keypair is derived from instead.
+- **Scoping honesty:** this works for any wallet that can produce a `personal_sign` signature — effectively universal, but a recipient must call `registerEncryptionKey()` at least once before anyone can share with them. `shareFile()` throws a clear `InayaValidationError` (code `GRANTEE_NOT_REGISTERED`) rather than failing silently or fabricating a key if they haven't.
+- **Revocation honesty:** `revokeShare()` stops *future* `getSharedFileKey()` calls for that recipient. It cannot retroactively un-decrypt a passkey the recipient already fetched and cached locally before revocation — that's a fundamental property of any share-then-revoke scheme, not a gap in this implementation. Communicate "revoke" to end users as "stop future access," not "delete their copy."
 
-## 10. TypeScript
+**Full method list:** `registerFileMetadata`, `renameFile`, `moveFile`, `deleteFile`, `restoreFile`, `listFiles`, `createFolder`, `renameFolder`, `moveFolder`, `deleteFolder`, `listFolders`, `deriveShareKeypair`, `registerEncryptionKey`, `getEncryptionKey`, `shareFile`, `revokeShare`, `listSharedWithMe`, `getSharedFileKey`.
+
+See `examples/FileManagerWidget.jsx` for a complete browser-based client using all of the above against the reference backend in `examples/nextjs-metadata-api-routes.js` — note the REAL deployed backend for this project lives in `inaya-network-dapp/src/app/api/metadata/*` (built 2026-08-03 alongside this feature; the example file remains illustrative/reference-only, matching its original purpose).
+
+## 10. The Analytics Client — Storage Statistics
+
+Per-wallet storage statistics (`InayaKernel.Analytics.getWalletStorageStats()`), built 2026-08-03 as pure aggregation on top of data the SDK can already read — no new on-chain writes, no new backend beyond Metadata's `list-files` route.
+
+```js
+const stats = await InayaKernel.Analytics.getWalletStorageStats({
+  connection, // any read-only-capable connection — a signer isn't required, just a provider
+  address: walletAddress,
+});
+
+console.log(stats.totalFilesStored, stats.totalBytesStored, stats.mostRecentActivity);
+console.log(stats.uploadFrequency.daily); // [{ date: "2026-08-03", count: 3 }, ...]
+```
+
+**Two hard constraints this works within — verified before building, not assumed:**
+
+1. **`InayaCustody` has no on-chain enumeration function.** Its only file-related read is `assets(bytes32)` — a single-fileHash lookup, nothing that answers "list every file wallet X owns." Confirmed by inspecting the deployed ABI in `contracts.js` and by attempting to pull the contract's full verified ABI/event list from BscScan testnet, which came back "Contract source code not verified." **`Metadata.listFiles()` (the off-chain DB) is therefore the only enumeration source that exists at all** — not a design choice, a hard limit of the deployed contract. Every file it returns is still individually cross-checked against `assets(fileHash)` before being counted (see `unreconciled`/`unreconciledCount` in the response) — a stale or tampered-with off-chain record can't silently inflate a wallet's reported stats.
+2. **`assets(bytes32)` doesn't return file size.** Its return tuple is `(owner, shardACID, shardBCID, timestamp)` — `batchRegisterAssets()` takes `fileSizes` as a write-time parameter, but nothing in the deployed contract's read interface exposes it back out. The only place a file's size is recoverable from is `Metadata`'s `fileSizeBytes` field, which you should pass to `registerFileMetadata()` right after anchoring (see §9). This means `totalBytesStored` is a **client-reported, not chain-verified**, figure.
+
+**This module never fabricates a number.** If any reconciled file is missing a known size, `totalBytesStored` is `null` — not `0`, and not a partial sum presented as if it were complete — because either of those would misrepresent real usage. `bytesUnavailableCount` tells the caller how many files are missing one. Verified end-to-end against a real anchored file during Module 1's E2E test (2026-08-03): `totalBytesStored` matched the real file's byte count exactly, `unreconciledCount` was `0` for an all-real dataset, and two fabricated fileHashes fed in during isolated testing correctly landed in `unreconciled` rather than being silently counted.
+
+## 11. TypeScript
 
 Fully typed — every function, every event payload. No `@types` package needed; the `.d.ts` files ship alongside the source.
 
@@ -247,14 +290,16 @@ Verify your own integration compiles correctly against these types:
 npx tsc --noEmit --strict your-file.ts
 ```
 
-## 11. Testing This SDK Yourself
+## 12. Testing This SDK Yourself
 
 - **`test_harness.html`** — a browser-based manual test harness. Imports the *real* SDK files directly (not a reimplementation), covering wallet connect → encrypt/shard → anchor → retrieve → Payments client, against the live testnet. Serve with `npx serve .` and open in a browser (must be `http://localhost`, not a raw IP — Web Crypto requires a secure context).
 - **`test_crypto_roundtrip.mjs`** — pure Node.js, no wallet needed, verifies the encrypt/decrypt round trip.
 - **`diagnostic_check.mjs`** — pure Node.js, no wallet, checks whether the live contract/RPC are reachable and correctly configured — useful for isolating "is this my network/wallet, or the contract itself" when something's not working.
 - **`type_check_test.ts`** — validates the `.d.ts` files actually compile against realistic usage; run with the same `tsc --noEmit --strict` command shown above.
+- **`e2e_sharing_test.mjs`** (added 2026-08-03) — genuine two-real-wallet end-to-end test of the Metadata sharing flow: real file, real IPFS pinning, real on-chain anchor, real HTTP calls against a locally running `inaya-network-dapp` dev server's real `/api/metadata/*` routes. Requires `TREASURY_WALLET_PRIVATE_KEY`, `PINATA_SECRET_API_KEY` (used as a Bearer JWT — see the Pinata dashboard for the current name Pinata gives this token type), and the dApp running locally on port 3000. Also exercises the Analytics client against the same real anchored file.
+- **`stress_test_protocol.mjs`** (added 2026-08-03) — one-off protocol diligence script, not a permanent feature: sequential + concurrent `batchRegisterAssets` writes and a larger concurrent `assets()` read burst against live BNB Chain Testnet. See `STRESS_TEST_REPORT.md` for the real results from the last run.
 
-## 12. Known Limitations — Read Before Reporting a Bug
+## 13. Known Limitations — Read Before Reporting a Bug
 
 1. **Egress has no on-chain enforcement.** Retrieval (`assets()`) is a public read; nothing in the deployed contract gates it. The `Payments.getEgressUnlockStatus`/`startEgressCheckout` pair is an *application-level* gate for card customers only — bypassable by anyone who already knows a `fileHash` and queries the chain/IPFS directly. Wallet-connected users currently have no egress gate of any kind.
 2. **`InayaNetwork` (a second registry contract) is deployed but unused.** All reads/writes in this SDK go through `InayaCustody` exclusively — don't assume `INAYA_ADDRESSES.network` is part of the active data path.
@@ -263,11 +308,14 @@ npx tsc --noEmit --strict your-file.ts
 5. **(Fixed 2026-08-01) `INAYA_STAKING_ABI` didn't match the deployed `InayaStaking` contract.** The previous ABI (`stake(uint256)`, `unstake()`, `calculateReward()`, `stakedBalance()`) shared none of its function names with the real contract at `INAYA_ADDRESSES.staking` — every `Staking.*` call would have reverted. Found while wiring the mobile app's Staking screen against the same address and cross-checked directly against `contracts/InayaStaking.sol`. Replaced with the verified-correct ABI (`stake(amount, lockPeriodDays)`, `withdraw(amount)`, `claimReward()`, `earned()`, `userStakedBalance()`, `getUserTier()`, `totalStaked()`, `rewardRate()`, `lockExpiry()`, `enterpriseTierThreshold()`), and updated `Staking.stake/unstake/calculateReward/getStakedBalance` accordingly. Two behavior changes worth flagging for existing callers: `stake()` now takes an optional `lockPeriodDays` (0/30/90, default 0); `unstake()` now requires an `amount` (the real contract's `withdraw()` takes a partial amount, not an all-or-nothing exit) and no longer also pays out rewards — call the new `Staking.claimReward()` separately for that, matching the real contract's separate `withdraw()`/`claimReward()` functions. `INAYA_CUSTODY_ABI` and `INAYA_TOKEN_ABI` were checked against the same real contract sources (`InayaToken.sol`) and the web dApp's own contract calls and don't have this problem — both match exactly.
 6. **(Confirmed 2026-08-01) `InayaCustody` has no on-chain mutation/delete/rename capability of any kind.** Went looking for this directly rather than assuming it from an absence of documentation: pulled the contract's live bytecode via `eth_getCode` and extracted its function selectors, then — because that same selector-extraction approach turned out to have a real blind spot on a larger 33-function contract (it missed `earned(address)` on `InayaStaking` due to compiler-generated binary-search dispatch instead of a linear if-chain, caught only by cross-checking with a live call) — re-verified Custody the more rigorous way: live `eth_call`s against six plausible mutation function names. All six reverted with empty data (`execution reverted: 0x`, no reason string — the signature of "no matching selector, no fallback"), while the real `assets(bytes32)` call on the same contract succeeded cleanly even with a dummy key. `batchRegisterAssets` is genuinely the only function that writes asset data, and it's write-once by design. This is the reason the new `Metadata` client (§9) exists as an off-chain layer rather than as additional on-chain contract calls.
 7. **(Fixed 2026-08-01) `Payments`/`Metadata`'s GET reads weren't retried at all**, unlike every on-chain read in `index.js` — an audit of the retry mechanism found `postJSON`/`getJSON` in both modules called `fetch()` directly with no `withRetry()` wrapping. Fixed by wrapping `getJSON` in `withRetry()` in both files (POSTs are deliberately left un-retried — same rationale as not retrying transactions: a POST that "failed" client-side may have already applied server-side). Also hardened `defaultIsRetryable()` in `utils.js` to treat `HTTP_5xx` codes (your own backend's server errors) as retryable, while `HTTP_4xx` correctly still isn't.
-8. **(Fixed 2026-08-01) No repository governance scaffolding existed** — Module 4 of the Phase 2 roadmap. Added `README.md` (the actual front door — this file was previously referenced in §13's package listing but didn't exist), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), and `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md` + `PULL_REQUEST_TEMPLATE.md`. Applying the actual `good first issue` label to specific issues still needs to happen in the GitHub UI/`gh` CLI — that's a live repo action, not a file this SDK ships.
+8. **(Fixed 2026-08-01) No repository governance scaffolding existed** — Module 4 of the Phase 2 roadmap. Added `README.md` (the actual front door — this file was previously referenced in §14's package listing but didn't exist), `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md` (Contributor Covenant 2.1), and `.github/ISSUE_TEMPLATE/{bug_report,feature_request}.md` + `PULL_REQUEST_TEMPLATE.md`. Applying the actual `good first issue` label to specific issues still needs to happen in the GitHub UI/`gh` CLI — that's a live repo action, not a file this SDK ships.
 9. **(Fixed 2026-08-01) `crypto.d.ts`'s `VaultKey.key` was still typed as `CryptoKey`**, a leftover from before the `crypto.subtle` → `@noble/hashes` rewrite (see limitation about React Native compatibility). `deriveVaultKey()` actually returns a raw `Uint8Array` digest — the old type would have made any strict-mode code touching `vaultKey.key` directly (e.g. checking `.algorithm`/`.extractable`) type-check against methods/properties that don't exist at runtime. Found during a full pass auditing every `.d.ts` against its matching `.js` for drift; fixed by correcting the type to `Uint8Array`.
 10. **(Fixed 2026-08-01) `disperseAndSlice()` didn't actually work in plain Node.js**, despite §2 claiming it did — `readFileAsDataURL()` still called `new FileReader()`, a browser-only global with no Node equivalent, so any Node caller would crash before encryption even started. Caught by actually running `test_crypto_roundtrip.mjs` after fixing it to exercise the real `disperseAndSlice()`/`reconstructAndDecrypt()` functions instead of reimplementing encryption inline with the old `crypto.subtle` API (which is how it had been silently passing). Fixed by rebuilding `readFileAsDataURL()` on `file.arrayBuffer()`, which both browser File/Blob and Node 18+'s global File/Blob implement — the claim in §2 is now actually true. `crypto.js`'s validation throws were also switched from plain `Error` to `InayaValidationError`, closing the last gap in Module 2's standardized-error-handling work.
+11. **(Fixed 2026-08-03) `shareFile()`'s key re-wrapping was never actually built** — the method accepted a `wrappedVaultKey` parameter, but nothing in this SDK could produce one correctly, so sharing was non-functional despite having a complete-looking API surface. Built as X25519 (ephemeral-sender ECIES "sealed box") + HKDF-SHA256 + XChaCha20-Poly1305, with each wallet's keypair deterministically derived from a `personal_sign` signature of a fixed message — deliberately NOT MetaMask's `eth_getEncryptionPublicKey`/`eth_decrypt`, which web search confirmed have been deprecated since 2022 (EIP-1024 abandoned, MetaMask itself no longer recommends them) with no evidence of support over WalletConnect-style connections, which is how this project's own mobile app connects. See §9 for the full API and its two honest scoping caveats (registration is required before receiving a share; revocation is not retroactive). Verified with a genuine two-real-wallet end-to-end test (real file, real IPFS pinning, real on-chain anchor, real HTTP calls against the real new `inaya-network-dapp/src/app/api/metadata/*` backend) rather than a mocked unit test — every check passed, including the wrong-recipient and post-revocation rejection cases.
+12. **(Discovered 2026-08-03, real backend for Metadata never existed until now) `inaya-network-dapp` had no `api/metadata/*` routes at all** — `custody-sdk`'s `examples/nextjs-metadata-api-routes.js` was always illustrative-only (comments describing what a real DB call would look like), and no one had actually deployed a working backend for the Metadata module, sharing or otherwise. Building Module 1's genuine E2E test required a real, reachable backend to call, so the routes needed for the sharing flow (`register-encryption-key`, `get-encryption-key`, `share-file`, `revoke-share`, `get-shared-file-key`, `list-shared-with-me`) plus the two Analytics depends on (`register-file`, `list-files`) were built for real, MongoDB-backed, with the same four-step signature/ownership verification as the illustrative example. **The rest of Metadata's surface (`rename-file`, `move-file`, `delete-file`, `restore-file`, `create-folder`, `rename-folder`, `move-folder`, `delete-folder`, `list-folders`) still has no real backend** — out of scope for this SOW's Module 1 (sharing) and Module 2 (analytics), flagged honestly rather than silently left implied-working.
+13. **(Confirmed 2026-08-03) Stress testing surfaced a real fee-token allowance gap, and a real public-RPC read-concurrency ceiling.** See `STRESS_TEST_REPORT.md` for the full write-up with real numbers from two live runs against BNB Chain Testnet. Short version: a burst of writes will silently start failing partway through if the caller's pre-approved fee-token allowance wasn't sized for the whole batch (not a contract bug — an operational gap in how the caller manages approval); and the free public RPC endpoint this SDK defaults to reliably handles ~100 concurrent reads but reliably fails at 150+, which any high-concurrency read workload should plan around (client-side throttling, retry-on-transient-failure — `withRetry()` already does the latter automatically — or a dedicated RPC endpoint).
 
-## 13. Package Contents Reference
+## 14. Package Contents Reference
 
 ```
 custody-sdk/
@@ -289,7 +337,8 @@ custody-sdk/
 │   ├── index.js / index.d.ts          — InayaKernel (main export)
 │   ├── utils.js / utils.d.ts          — retry logic, event emitter
 │   ├── payments.js / payments.d.ts    — card-payment backend client
-│   └── metadata.js / metadata.d.ts    — rename/move/delete/folders/sharing backend client
+│   ├── metadata.js / metadata.d.ts    — rename/move/delete/folders/sharing backend client
+│   └── analytics.js / analytics.d.ts  — per-wallet storage statistics
 ├── examples/
 │   ├── ReactUploadWidget.jsx              — browser, wallet-connected upload
 │   ├── StakingWidget.jsx                  — browser, stake/withdraw/claimReward + typed-error handling

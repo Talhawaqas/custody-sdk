@@ -25,6 +25,7 @@ import { INAYA_CUSTODY_ABI, INAYA_TOKEN_ABI, INAYA_STAKING_ABI, INAYA_ADDRESSES 
 import { withRetry, InayaEventEmitter } from "./utils.js";
 import { Payments } from "./payments.js";
 import { Metadata } from "./metadata.js";
+import { Analytics } from "./analytics.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -339,6 +340,7 @@ export const InayaKernel = {
   Staking,
   Payments,
   Metadata,
+  Analytics,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError },
 };

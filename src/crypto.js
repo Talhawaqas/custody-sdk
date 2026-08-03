@@ -19,12 +19,30 @@
 import { pbkdf2 } from "@noble/hashes/pbkdf2.js";
 import { sha256, sha384, sha512 } from "@noble/hashes/sha2.js";
 import { gcm } from "@noble/ciphers/aes.js";
+import { x25519 } from "@noble/curves/ed25519";
+import { xchacha20poly1305 } from "@noble/ciphers/chacha.js";
+import { hkdf } from "@noble/hashes/hkdf.js";
+import { hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import { InayaValidationError } from "./errors.js";
 
 const PBKDF2_ITERATIONS = 100000;
 const SALT_BYTES = 16;
 const IV_BYTES = 12;
 const AES_KEY_BYTES = 32; // 256-bit
+
+// Shared-storage key re-wrapping (Module 1, Phase 3 Tier 1) — X25519 + HKDF-SHA256 +
+// XChaCha20-Poly1305, i.e. the same "sealed box" construction as libsodium's
+// crypto_box_seal: an ephemeral sender keypair + ECDH + a symmetric AEAD cipher.
+// Deliberately NOT built on MetaMask's eth_getEncryptionPublicKey/eth_decrypt —
+// verified via web search (2026) that those are deprecated since 2022 (the
+// underlying EIP-1024 was abandoned), MetaMask itself no longer recommends them,
+// and there's no evidence they're supported over WalletConnect-style connections
+// at all (this app's mobile side connects via MetaMask Connect Multichain, which
+// almost certainly doesn't expose them). Using @noble/curves instead — same
+// audited "noble" family already trusted here for AES-GCM/PBKDF2 — keeps this
+// working identically across browser-extension, WalletConnect, and mobile.
+const ENCRYPTION_KEYPAIR_INFO = utf8ToBytes("inaya-share-v1");
+const XCHACHA_NONCE_BYTES = 24;
 
 function toBase64(bytes) {
   let binary = "";
@@ -119,4 +137,73 @@ export async function reconstructAndDecrypt({ shardAlpha, shardBeta, passkey }) 
   const decrypted = gcm(key, iv).decrypt(encrypted);
   const dataUrl = new TextDecoder().decode(decrypted);
   return dataUrl; // data: URL — same shape the dApp already renders/downloads from
+}
+
+/**
+ * Deterministically derives an X25519 encryption keypair from a wallet
+ * signature — signing the same fixed message with the same wallet always
+ * produces the same signature (personal_sign is deterministic per RFC 6979),
+ * so this keypair is reproducible on demand and never needs to be stored.
+ * The secretKey must never leave the device it was derived on; only
+ * publicKey is safe to register with a backend.
+ */
+export function deriveEncryptionKeypairFromSignature(signature) {
+  if (!signature) throw new InayaValidationError("InayaKernel.deriveEncryptionKeypairFromSignature: signature is required.");
+  const sigHex = signature.startsWith("0x") ? signature.slice(2) : signature;
+  const secretKey = sha256(hexToBytes(sigHex)); // uniform 32-byte seed; x25519 clamps internally
+  const publicKey = x25519.getPublicKey(secretKey);
+  return { secretKey, publicKey };
+}
+
+/**
+ * Encrypts `plaintext` (the file owner's passkey, in the sharing flow) so
+ * that only the holder of recipientPublicKey's matching secretKey can
+ * decrypt it — an anonymous "sealed box": a fresh ephemeral keypair per
+ * call, ECDH against the recipient's public key, HKDF-SHA256 to derive a
+ * symmetric key, then XChaCha20-Poly1305 (authenticated — tampering with
+ * the returned blob makes decryptWithSecretKey() throw, it never silently
+ * returns corrupted plaintext). Returns one opaque base64 string, the same
+ * shape shareFile()'s wrappedVaultKey has always documented itself as.
+ */
+export function encryptForPublicKey({ plaintext, recipientPublicKey }) {
+  if (!plaintext) throw new InayaValidationError("InayaKernel.encryptForPublicKey: plaintext is required.");
+  if (!recipientPublicKey) throw new InayaValidationError("InayaKernel.encryptForPublicKey: recipientPublicKey is required.");
+  const recipientKeyBytes = typeof recipientPublicKey === "string" ? hexToBytes(recipientPublicKey.replace(/^0x/, "")) : recipientPublicKey;
+
+  const ephemeralSecretKey = crypto.getRandomValues(new Uint8Array(32));
+  const ephemeralPublicKey = x25519.getPublicKey(ephemeralSecretKey);
+  const sharedSecret = x25519.getSharedSecret(ephemeralSecretKey, recipientKeyBytes);
+  const symmetricKey = hkdf(sha256, sharedSecret, undefined, ENCRYPTION_KEYPAIR_INFO, AES_KEY_BYTES);
+
+  const nonce = crypto.getRandomValues(new Uint8Array(XCHACHA_NONCE_BYTES));
+  const ciphertext = xchacha20poly1305(symmetricKey, nonce).encrypt(utf8ToBytes(plaintext));
+
+  // Pack ephemeralPublicKey + nonce + ciphertext together so decryption only needs the recipient's secretKey.
+  const combined = new Uint8Array(ephemeralPublicKey.length + nonce.length + ciphertext.length);
+  combined.set(ephemeralPublicKey, 0);
+  combined.set(nonce, ephemeralPublicKey.length);
+  combined.set(ciphertext, ephemeralPublicKey.length + nonce.length);
+  return toBase64(combined);
+}
+
+/**
+ * Reverses encryptForPublicKey() — recovers the original plaintext using
+ * only the recipient's secretKey (from deriveEncryptionKeypairFromSignature()).
+ * Throws (via Poly1305's authentication tag check) rather than returning
+ * garbage if `wrapped` was tampered with or wasn't actually encrypted for
+ * this secretKey.
+ */
+export function decryptWithSecretKey({ wrapped, secretKey }) {
+  if (!wrapped) throw new InayaValidationError("InayaKernel.decryptWithSecretKey: wrapped is required.");
+  if (!secretKey) throw new InayaValidationError("InayaKernel.decryptWithSecretKey: secretKey is required.");
+  const combined = fromBase64(wrapped);
+
+  const ephemeralPublicKey = combined.slice(0, 32);
+  const nonce = combined.slice(32, 32 + XCHACHA_NONCE_BYTES);
+  const ciphertext = combined.slice(32 + XCHACHA_NONCE_BYTES);
+
+  const sharedSecret = x25519.getSharedSecret(secretKey, ephemeralPublicKey);
+  const symmetricKey = hkdf(sha256, sharedSecret, undefined, ENCRYPTION_KEYPAIR_INFO, AES_KEY_BYTES);
+  const plaintext = xchacha20poly1305(symmetricKey, nonce).decrypt(ciphertext);
+  return new TextDecoder().decode(plaintext);
 }

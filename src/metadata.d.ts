@@ -114,11 +114,39 @@ export interface FolderRecord {
   deletedAt: string | null;
 }
 
+export interface DeriveShareKeypairParams {
+  connection: WalletConnection;
+}
+
+export interface ShareKeypair {
+  address: string;
+  secretKey: Uint8Array;
+  publicKey: Uint8Array;
+}
+
+export interface RegisterEncryptionKeyParams {
+  connection: WalletConnection;
+  apiBaseUrl?: string;
+}
+
+export interface GetEncryptionKeyParams {
+  address: string;
+  apiBaseUrl?: string;
+}
+
 export interface ShareFileParams {
   connection: WalletConnection;
   fileHash: string;
   granteeAddress: string;
-  wrappedVaultKey: string;
+  /** The owner's original passkey (the same one deriveVaultKey() was called with) — shareFile()
+   *  encrypts it for granteeAddress internally; you never construct wrappedVaultKey yourself. */
+  passkey: string;
+  apiBaseUrl?: string;
+}
+
+export interface GetSharedFileKeyParams {
+  connection: WalletConnection;
+  fileHash: string;
   apiBaseUrl?: string;
 }
 
@@ -157,9 +185,18 @@ export interface MetadataAPI {
   deleteFolder(params: DeleteFolderParams): Promise<FolderRecord>;
   listFolders(params: ListFoldersParams): Promise<{ folders: FolderRecord[] }>;
 
+  /** Derives this wallet's deterministic X25519 sharing keypair — exported for advanced/custom
+   *  flows; registerEncryptionKey() and getSharedFileKey() already call this internally. */
+  deriveShareKeypair(params: DeriveShareKeypairParams): Promise<ShareKeypair>;
+  registerEncryptionKey(params: RegisterEncryptionKeyParams): Promise<{ ok: true }>;
+  getEncryptionKey(params: GetEncryptionKeyParams): Promise<{ publicKey: string | null }>;
+
   shareFile(params: ShareFileParams): Promise<{ ok: true }>;
   revokeShare(params: RevokeShareParams): Promise<{ ok: true }>;
   listSharedWithMe(params: ListSharedWithMeParams): Promise<{ shares: SharedFileRecord[] }>;
+  /** Recipient-side: fetches, derives, and decrypts in one call — returns the original passkey,
+   *  ready to pass into InayaKernel.reconstructAndDecrypt() alongside the file's shard data. */
+  getSharedFileKey(params: GetSharedFileKeyParams): Promise<{ passkey: string }>;
 }
 
 export const Metadata: MetadataAPI;
