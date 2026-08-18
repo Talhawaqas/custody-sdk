@@ -7,7 +7,7 @@ This monorepo (npm workspaces) hosts the SDK's surrounding ecosystem, alongside 
 | [`react`](./react) | `@inaya-network/react` — drop-in React + Tailwind components (`InayaConnect`, `InayaUploader`, `InayaFileBrowser`). | [npm](https://www.npmjs.com/package/@inaya-network/react) |
 | [`cli`](./cli) | `inaya-cli` — terminal/CI-CD tool (`inaya login` / `upload` / `list`). | [npm](https://www.npmjs.com/package/inaya-cli) |
 | [`create-inaya-dapp`](./create-inaya-dapp) | `npx create-inaya-dapp` scaffolding tool + both starter templates (Vault + Media Viewer). | [npm](https://www.npmjs.com/package/create-inaya-dapp) |
-| [`node-daemon`](./node-daemon) | `@inaya-network/node-daemon` — minimal node operator daemon (`inaya-node-daemon login` / `register` / `start` / `service install`). Registration + heartbeat telemetry only, no shard storage/serving. | Not yet published |
+| [`node-daemon`](./node-daemon) | `@inaya-network/node-daemon` — minimal node operator daemon (`inaya-node-daemon login` / `register` / `start` / `service install`). Registration + heartbeat telemetry only, no shard storage/serving. | [npm](https://www.npmjs.com/package/@inaya-network/node-daemon) |
 
 All three are live on the public npm registry as of 2026-08-02, verified working with real end-to-end tests, not just "it typechecks":
 
