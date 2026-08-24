@@ -1,6 +1,6 @@
 # @inaya-network/custody-sdk — Developer Guide
 
-**Version:** 1.0.4-beta · **Last updated:** August 3, 2026 · BNB Chain Testnet
+**Version:** 1.0.5-beta · **Last updated:** August 24, 2026 · BNB Chain Testnet
 
 A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard, anchor, and reconstruct files against the live testnet, with full TypeScript support, robustness features, a client for the card-payment (no-wallet) flow, and an off-chain layer for rename/move/delete/share operations the on-chain contract itself doesn't support.
 
@@ -8,21 +8,21 @@ A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard
 
 ## 1. Installation
 
-**Current alpha distribution — via GitHub, not npm's public registry yet:**
+**Now live on the public npm registry**, under the `beta` dist-tag (no stable `latest` release yet — see the known limitations section for what "stable" would mean here):
 
+```bash
+npm install @inaya-network/custody-sdk@beta ethers
+```
+
+**The `@beta` tag is required, not optional.** This package has never had a `latest` release published, so plain `npm install @inaya-network/custody-sdk` (no tag) will fail — npm resolves an untagged install request against `latest`, which doesn't exist yet for this package.
+
+`ethers` (v6) is a peer dependency, not bundled — install it alongside regardless.
+
+**Still on GitHub too, if you'd rather track a specific commit:**
 ```bash
 npm install github:Talhawaqas/custody-sdk ethers
 ```
-
-This is a private repository. You'll need collaborator access granted (ask Talha) and git authentication configured on your machine (SSH key or a GitHub personal access token) — `npm install github:...` clones the repo under the hood, so the same auth npm uses for any private GitHub install applies here.
-
-`ethers` (v6) is a peer dependency, not bundled — install it alongside regardless of which method above you used.
-
-**Once this graduates to a public npm publish** (not yet — see the known limitations section for why), installation will simplify to:
-```bash
-npm install @inaya-network/custody-sdk ethers
-```
-Check back here or watch for an announcement before assuming that command works.
+This repo is private, so that path needs collaborator access (ask Talha) and git auth configured locally (SSH key or a GitHub PAT) — `npm install github:...` clones the repo under the hood, using the same auth npm uses for any private GitHub install.
 
 ## 2. What This SDK Actually Does
 
@@ -314,6 +314,7 @@ npx tsc --noEmit --strict your-file.ts
 11. **(Fixed 2026-08-03) `shareFile()`'s key re-wrapping was never actually built** — the method accepted a `wrappedVaultKey` parameter, but nothing in this SDK could produce one correctly, so sharing was non-functional despite having a complete-looking API surface. Built as X25519 (ephemeral-sender ECIES "sealed box") + HKDF-SHA256 + XChaCha20-Poly1305, with each wallet's keypair deterministically derived from a `personal_sign` signature of a fixed message — deliberately NOT MetaMask's `eth_getEncryptionPublicKey`/`eth_decrypt`, which web search confirmed have been deprecated since 2022 (EIP-1024 abandoned, MetaMask itself no longer recommends them) with no evidence of support over WalletConnect-style connections, which is how this project's own mobile app connects. See §9 for the full API and its two honest scoping caveats (registration is required before receiving a share; revocation is not retroactive). Verified with a genuine two-real-wallet end-to-end test (real file, real IPFS pinning, real on-chain anchor, real HTTP calls against the real new `inaya-network-dapp/src/app/api/metadata/*` backend) rather than a mocked unit test — every check passed, including the wrong-recipient and post-revocation rejection cases.
 12. **(Discovered 2026-08-03, real backend for Metadata never existed until now) `inaya-network-dapp` had no `api/metadata/*` routes at all** — `custody-sdk`'s `examples/nextjs-metadata-api-routes.js` was always illustrative-only (comments describing what a real DB call would look like), and no one had actually deployed a working backend for the Metadata module, sharing or otherwise. Building Module 1's genuine E2E test required a real, reachable backend to call, so the routes needed for the sharing flow (`register-encryption-key`, `get-encryption-key`, `share-file`, `revoke-share`, `get-shared-file-key`, `list-shared-with-me`) plus the two Analytics depends on (`register-file`, `list-files`) were built for real, MongoDB-backed, with the same four-step signature/ownership verification as the illustrative example. **The rest of Metadata's surface (`rename-file`, `move-file`, `delete-file`, `restore-file`, `create-folder`, `rename-folder`, `move-folder`, `delete-folder`, `list-folders`) still has no real backend** — out of scope for this SOW's Module 1 (sharing) and Module 2 (analytics), flagged honestly rather than silently left implied-working.
 13. **(Confirmed 2026-08-03) Stress testing surfaced a real fee-token allowance gap, and a real public-RPC read-concurrency ceiling.** See `STRESS_TEST_REPORT.md` for the full write-up with real numbers from two live runs against BNB Chain Testnet. Short version: a burst of writes will silently start failing partway through if the caller's pre-approved fee-token allowance wasn't sized for the whole batch (not a contract bug — an operational gap in how the caller manages approval); and the free public RPC endpoint this SDK defaults to reliably handles ~100 concurrent reads but reliably fails at 150+, which any high-concurrency read workload should plan around (client-side throttling, retry-on-transient-failure — `withRetry()` already does the latter automatically — or a dedicated RPC endpoint).
+14. **(Fixed 2026-08-24) The package had no `.npmignore`, so the very first npm publish (`1.0.4-beta`) accidentally bundled internal `.claude/` dev-tooling config (no secrets — just Claude Code permission allow-lists) and two disposable raw stress-test JSON dumps (~77KB) that were never meant to ship. Caught by inspecting the actual published tarball contents rather than assuming a clean publish. Fixed in `1.0.5-beta` with a real `.npmignore` — worth flagging for future maintainers: an `.npmignore` file *replaces* npm's gitignore-fallback entirely rather than adding to it, so it has to restate everything `.gitignore` already excluded (`node_modules/`, `.expo/`, `storybook-static/`) or those silently start shipping too. Verified via `npm publish --dry-run` before the real publish: file count and package size dropped by exactly the 5 removed files (~77KB), nothing else changed. `1.0.4-beta` was left published rather than unpublished (no secrets were in it, and npm discourages unpublishing) — `1.0.5-beta` supersedes it under the same `beta` dist-tag.
 
 ## 14. Package Contents Reference
 

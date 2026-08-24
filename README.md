@@ -7,10 +7,10 @@ Client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard, 
 ## Install
 
 ```bash
-npm install github:Talhawaqas/custody-sdk ethers
+npm install @inaya-network/custody-sdk@beta ethers
 ```
 
-This is currently a private repository distributed via GitHub rather than npm's public registry — see [SDK_GUIDE.md §1](./SDK_GUIDE.md#1-installation) for access details. `ethers` (v6) is a peer dependency.
+Live on the public npm registry under the `beta` dist-tag — the `@beta` is required, there's no `latest` release yet. See [SDK_GUIDE.md §1](./SDK_GUIDE.md#1-installation) for the GitHub-install alternative if you'd rather track a specific commit. `ethers` (v6) is a peer dependency.
 
 ## 30-second example
 

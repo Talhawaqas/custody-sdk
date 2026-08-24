@@ -1,0 +1,20 @@
+# NOTE: an .npmignore file REPLACES gitignore-fallback entirely (npm does
+# not merge the two) -- so this must restate everything .gitignore already
+# excluded (node_modules/, .expo/, storybook-static/), not just the new
+# entries below, or those all silently start shipping in the package.
+node_modules/
+.expo/
+storybook-static/
+
+# Internal dev tooling -- never meant to ship in the published package.
+.claude/
+
+# Raw one-off stress-test output dumps -- STRESS_TEST_REPORT.md is the
+# actual documented artifact (see SDK_GUIDE.md §14); these are disposable
+# intermediate data, not something a consumer of the package needs.
+stress_test_raw_*.json
+
+# Standard excludes
+.env
+.env.local
+*.log
