@@ -3,11 +3,13 @@
 
 import { generateSecureSalt, deriveVaultKey, disperseAndSlice } from "./crypto";
 import type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo } from "./crypto";
+import { createPasskeyBackup, restorePasskeyBackup, isPasskeyBackupEnvelope, PASSKEY_BACKUP_VERSION } from "./passkeyBackup";
+import type { PasskeyBackupEnvelope, CreatePasskeyBackupOptions } from "./passkeyBackup";
 import type { InayaEventEmitter } from "./utils";
 import type { PaymentsAPI } from "./payments";
 import type { MetadataAPI } from "./metadata";
 import type { AnalyticsAPI } from "./analytics";
-import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError } from "./errors";
+import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError } from "./errors";
 
 /**
  * Pass this whole object in as `connection` to every method that needs one.
@@ -200,14 +202,19 @@ export {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  createPasskeyBackup,
+  restorePasskeyBackup,
+  isPasskeyBackupEnvelope,
+  PASSKEY_BACKUP_VERSION,
   InayaError,
   InayaValidationError,
   InayaWalletError,
   InayaContractError,
   InayaNetworkError,
+  InayaDecryptionError,
 };
 
-export type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo };
+export type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo, PasskeyBackupEnvelope, CreatePasskeyBackupOptions };
 
 export interface InayaErrorClasses {
   InayaError: typeof InayaError;
@@ -215,12 +222,16 @@ export interface InayaErrorClasses {
   InayaWalletError: typeof InayaWalletError;
   InayaContractError: typeof InayaContractError;
   InayaNetworkError: typeof InayaNetworkError;
+  InayaDecryptionError: typeof InayaDecryptionError;
 }
 
 export interface InayaKernelAPI {
   generateSecureSalt: typeof generateSecureSalt;
   deriveVaultKey: typeof deriveVaultKey;
   disperseAndSlice: typeof disperseAndSlice;
+  createPasskeyBackup: typeof createPasskeyBackup;
+  restorePasskeyBackup: typeof restorePasskeyBackup;
+  isPasskeyBackupEnvelope: typeof isPasskeyBackupEnvelope;
   connectWallet: typeof connectWallet;
   approveFeeTokens: typeof approveFeeTokens;
   anchorToLedger: typeof anchorToLedger;

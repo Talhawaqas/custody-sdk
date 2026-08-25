@@ -21,12 +21,13 @@
 
 import { ethers } from "ethers";
 import { generateSecureSalt, deriveVaultKey, disperseAndSlice, reconstructAndDecrypt } from "./crypto.js";
+import { createPasskeyBackup, restorePasskeyBackup, isPasskeyBackupEnvelope, PASSKEY_BACKUP_VERSION } from "./passkeyBackup.js";
 import { INAYA_CUSTODY_ABI, INAYA_TOKEN_ABI, INAYA_STAKING_ABI, INAYA_ADDRESSES } from "./contracts.js";
 import { withRetry, InayaEventEmitter } from "./utils.js";
 import { Payments } from "./payments.js";
 import { Metadata } from "./metadata.js";
 import { Analytics } from "./analytics.js";
-import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, translateError } from "./errors.js";
+import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
 const events = new InayaEventEmitter();
@@ -333,6 +334,9 @@ export const InayaKernel = {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  createPasskeyBackup,
+  restorePasskeyBackup,
+  isPasskeyBackupEnvelope,
   connectWallet,
   approveFeeTokens,
   anchorToLedger,
@@ -342,11 +346,12 @@ export const InayaKernel = {
   Metadata,
   Analytics,
   events,
-  errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError },
+  errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };
 
 // Also available as named imports (`import { InayaWalletError } from '@inaya-network/custody-sdk'`)
 // for consumers who'd rather not reach through InayaKernel.errors for instanceof checks.
-export { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError };
+export { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError };
+export { createPasskeyBackup, restorePasskeyBackup, isPasskeyBackupEnvelope, PASSKEY_BACKUP_VERSION };
 
 export default InayaKernel;

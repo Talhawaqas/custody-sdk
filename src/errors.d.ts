@@ -30,5 +30,10 @@ export class InayaNetworkError extends InayaError {
   constructor(message: string, opts?: InayaErrorOptions);
 }
 
+/** A local AEAD decryption failed — wrong backup password, or a corrupted/tampered backup file. */
+export class InayaDecryptionError extends InayaError {
+  constructor(message: string, opts?: InayaErrorOptions);
+}
+
 /** Translates a raw ethers/JSON-RPC/wallet error into a clean InayaError subclass. Idempotent. */
 export function translateError(err: unknown, operation?: string): InayaError;

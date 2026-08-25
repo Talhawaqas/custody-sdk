@@ -49,6 +49,17 @@ export class InayaNetworkError extends InayaError {
   }
 }
 
+/** A local AEAD decryption failed — wrong password, or a corrupted/tampered
+ *  backup file (see passkeyBackup.js). Deliberately one error/message for
+ *  both causes: AES-GCM makes them cryptographically indistinguishable by
+ *  design, and telling them apart would leak a password-guessing oracle. */
+export class InayaDecryptionError extends InayaError {
+  constructor(message, opts = {}) {
+    super(message, { ...opts, code: opts.code || "DECRYPTION_FAILED" });
+    this.name = "InayaDecryptionError";
+  }
+}
+
 /**
  * Translates a raw ethers/JSON-RPC/wallet error into a clean InayaError
  * subclass with a human-readable message. Idempotent — an error that's
