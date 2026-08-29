@@ -1,0 +1,21 @@
+{
+  "name": "@inaya-network/bridge-sdk",
+  "version": "0.1.0",
+  "description": "Cross-chain $INAYA transfer + cross-chain staking SDK for the Inaya Network (SOW-1). Separate from @inaya-network/custody-sdk (file custody) so upload-only consumers don't pay for this surface.",
+  "type": "module",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "peerDependencies": {
+    "ethers": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
