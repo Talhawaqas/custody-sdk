@@ -5,6 +5,7 @@ import { loginCommand } from "../src/commands/login.js";
 import { registerCommand } from "../src/commands/register.js";
 import { startCommand } from "../src/commands/start.js";
 import { reportCommand } from "../src/commands/report.js";
+import { statusCommand } from "../src/commands/status.js";
 import { serviceInstallCommand, serviceUninstallCommand } from "../src/commands/service.js";
 
 const program = new Command();
@@ -42,6 +43,12 @@ program
   .option("--evidence <hash>", "Optional short evidence reference/hash")
   .option("--api-base-url <url>", "Coordinator backend base URL (falls back to INAYA_API_BASE_URL, then production)")
   .action(reportCommand);
+
+program
+  .command("status")
+  .description("Show what the coordinator has recorded about this node: heartbeat recency, uptime score, daemon version/restarts, and threat-reporting reputation.")
+  .option("--api-base-url <url>", "Coordinator backend base URL (falls back to INAYA_API_BASE_URL, then production)")
+  .action(statusCommand);
 
 const service = program.command("service").description("Install/uninstall as a native background service (Windows Service / systemd / launchd).");
 service.command("install").description("Install and start the background service.").action(serviceInstallCommand);
