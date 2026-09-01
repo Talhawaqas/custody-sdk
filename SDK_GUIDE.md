@@ -341,7 +341,8 @@ custody-sdk/
 │   ├── utils.js / utils.d.ts          — retry logic, event emitter
 │   ├── payments.js / payments.d.ts    — card-payment backend client
 │   ├── metadata.js / metadata.d.ts    — rename/move/delete/folders/sharing backend client
-│   └── analytics.js / analytics.d.ts  — per-wallet storage statistics
+│   ├── analytics.js / analytics.d.ts  — per-wallet storage statistics
+│   └── backup.js / backup.d.ts        — replica redundancy status/health/recovery backend client
 ├── examples/
 │   ├── ReactUploadWidget.jsx              — browser, wallet-connected upload
 │   ├── StakingWidget.jsx                  — browser, stake/withdraw/claimReward + typed-error handling
@@ -355,5 +356,44 @@ custody-sdk/
 ├── diagnostic_check.mjs
 └── type_check_test.ts
 ```
+
+## 15. The Backup Client — Replica Redundancy & Recovery
+
+Added for the Backup & Recovery Mechanism SOW (`docs/backup-redundancy-architecture.md` in the
+dApp repo) — appended here as its own section rather than renumbered into §§8–10 to avoid
+disturbing every cross-reference elsewhere in this guide (several sections above reference each
+other by number, e.g. §16 references §9 and §14).
+
+**Not to be confused with `createPasskeyBackup`/`restorePasskeyBackup`** (flat top-level
+`InayaKernel` methods, §2's crypto primitives) — those back up your *passkey*, entirely locally,
+zero network calls. `InayaKernel.Backup` backs up *file shard data* across independent storage
+providers (redundancy for the ciphertext itself) — a completely different, server-backed concern.
+
+```js
+// Read-only, unauthenticated
+const status = await InayaKernel.Backup.getBackupStatus({ fileHash });
+console.log(status.healthState); // "Protected" | "Rebuilding" | "Degraded" | "RecoveryRequired" | "RecoveryFailed"
+
+const health = await InayaKernel.Backup.getBackupHealth({ fileHash }); // concise version of the above
+const redundancy = await InayaKernel.Backup.getRedundancyStatus({ fileHash }); // replica count vs. target, per shard
+const recovery = await InayaKernel.Backup.getRecoveryStatus({ fileHash }); // in-flight/last recovery job
+
+// Mutating, wallet-signature authenticated (same signMetadataAction-style signing as Metadata)
+const connection = await InayaKernel.connectWallet();
+await InayaKernel.Backup.requestRecovery({ connection, fileHash }); // forces an immediate recovery attempt instead of waiting for the next automatic sweep
+```
+
+**Requires a real backend** — same story as Payments/Metadata: this client is a typed fetch
+wrapper with no storage of its own. The reference implementation
+(`inaya-network-dapp/src/app/api/backup/*`, `src/lib/backupEngine.js`) is real, deployed, and
+MongoDB-backed, not illustrative-only.
+
+**Honest scoping**: redundancy is provider-diversity (replicating each shard across independent
+pinning providers), not erasure coding — it doesn't change the underlying 2-of-2 shard split, so
+losing *both* shards' entire replica sets independently still loses the file, same as before this
+existed. See the architecture doc's §2 for the full reasoning. As of this writing, only one
+pinning provider (Pinata) has real credentials configured — a second (Filebase) is fully coded but
+not yet live, so every asset's real, current status correctly reports `Degraded` (1 of 2 target
+replicas) rather than a false `Protected`.
 
 **Live repository:** github.com/Talhawaqas/custody-sdk

@@ -74,10 +74,23 @@ export const INAYA_STAKING_ABI = [
   "event RewardPaid(address indexed user, uint256 reward)",
 ];
 
+// InayaBackupRegistry — Backup & Recovery Mechanism (docs/backup-redundancy-architecture.md in
+// the dApp repo). Read-only from the SDK's perspective (all mutating calls are onlyOwner, made
+// by the backend coordinator, never by an end-user wallet) — exposed here for callers that want
+// to read a redundancy commitment or health state directly on-chain rather than via
+// InayaKernel.Backup's off-chain-backed API.
+export const INAYA_BACKUP_REGISTRY_ABI = [
+  "function getBackupRecord(bytes32 fileHash) external view returns (tuple(address owner, uint8 targetReplicaCount, bytes32 replicaSetHash, uint8 healthState, uint256 registeredAt, uint256 lastStateChangeAt))",
+  "event RedundancyCommitmentRegistered(bytes32 indexed fileHash, address indexed owner, uint8 targetReplicaCount, bytes32 replicaSetHash)",
+  "event RedundancyCommitmentUpdated(bytes32 indexed fileHash, uint8 targetReplicaCount, bytes32 replicaSetHash)",
+  "event BackupHealthChanged(bytes32 indexed fileHash, uint8 previousState, uint8 newState)",
+];
+
 // Live deployed addresses for the target network.
 export const INAYA_ADDRESSES = {
   network: "0x9dA15C2908C9A87Ac5af8c116d4092cB6569488e", // InayaNetwork — used for getAsset() (download/read)
   custody: "0x7F5E6cF1353beEE4fc19FD46Dd6EaD0B3895a888",  // InayaCustody — used for batchRegisterAssets() (upload/write)
   token: "0x3966a3378c8d9e6bb34dd0b8458eef4b878ce94e",     // InayaToken ($INAYA) contract address
   staking: "0xc465279444Cb0E10c69D0769CDae31E457eA660f",  // InayaStaking contract address
+  backupRegistry: "0x062c341aE4f11CB1dEa1B0D3930d52902F97f48a", // InayaBackupRegistry
 };

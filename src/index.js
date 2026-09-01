@@ -27,6 +27,7 @@ import { withRetry, InayaEventEmitter } from "./utils.js";
 import { Payments } from "./payments.js";
 import { Metadata } from "./metadata.js";
 import { Analytics } from "./analytics.js";
+import { Backup } from "./backup.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -345,6 +346,7 @@ export const InayaKernel = {
   Payments,
   Metadata,
   Analytics,
+  Backup,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };

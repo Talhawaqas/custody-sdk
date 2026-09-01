@@ -9,6 +9,7 @@ import type { InayaEventEmitter } from "./utils";
 import type { PaymentsAPI } from "./payments";
 import type { MetadataAPI } from "./metadata";
 import type { AnalyticsAPI } from "./analytics";
+import type { BackupAPI } from "./backup";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError } from "./errors";
 
 /**
@@ -173,6 +174,7 @@ export const Staking: StakingAPI;
 export const Payments: PaymentsAPI;
 export const Metadata: MetadataAPI;
 export const Analytics: AnalyticsAPI;
+export const Backup: BackupAPI;
 
 /**
  * Every event InayaKernel.events can emit, mapped to its exact payload shape.
@@ -240,6 +242,7 @@ export interface InayaKernelAPI {
   Payments: PaymentsAPI;
   Metadata: MetadataAPI;
   Analytics: AnalyticsAPI;
+  Backup: BackupAPI;
   events: InayaEventEmitter<InayaEventMap>;
   errors: InayaErrorClasses;
 }
