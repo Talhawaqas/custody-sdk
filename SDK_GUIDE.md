@@ -396,3 +396,64 @@ independently still loses the file, same as before this existed. See the archite
 the full reasoning and §7 for the real, live proof of both the replication and full recovery cycle.
 
 **Live repository:** github.com/Talhawaqas/custody-sdk
+
+## 16. The AppStore Client — List Your Own App
+
+Added for the Web3 App Store hosting SOW (`docs/ai-controlled-actions.md`'s sibling work — see the
+dApp repo's `src/lib/appStoreListings.js` for the full security model this client's server side
+enforces). Two accepted hosting shapes: `hostType: "ipfs"` (you've already pinned a static site and
+have its CID — see `inaya deploy` below for a one-command way to do that) or `hostType: "iframe"`
+(an already-hosted app, shown inside a strictly sandboxed iframe once approved). Same-origin hosting
+of third-party code and an unvetted open registry were both explicitly considered and rejected as
+options — every submission is reviewed by an Inaya admin, and checked against the live Security
+Layer threat registry both at submission and again at review time, before it's ever public.
+
+```js
+const connection = await InayaKernel.connectWallet();
+
+// Wallet-signature authenticated — same signMetadataAction-style signing every other mutating
+// client (Metadata, Backup) already uses. Lands as "pending", never immediately public.
+const { slug, status } = await InayaKernel.AppStore.submitListing({
+  connection,
+  name: "My App",
+  description: "What it does, in one or two sentences.",
+  category: "Tools", // Storage | DeFi | Social | Gaming | Tools | Other
+  hostType: "ipfs",
+  cid: "bafy...", // already pinned — see inaya deploy for a one-command way to get this
+});
+
+// Read-only, unauthenticated
+const { listings } = await InayaKernel.AppStore.getListings(); // public, approved-only
+const mine = await InayaKernel.AppStore.getMyListings({ address: myAddress }); // every status — the only way to check your own pending/rejected submission without admin access
+```
+
+**`inaya deploy <path>` (inaya-cli)** does the whole "static site → live App Store submission" flow
+in one command: walks a local build directory, pins it to IPFS as a single directory CID via your
+own Pinata account (`PINATA_JWT` env var — the CLI never proxies this through Inaya's backend, so
+there's no new upload surface on Inaya's own infrastructure and you bear your own Pinata cost), then
+calls `AppStore.submitListing()` with the resulting CID.
+
+```bash
+inaya login                                  # once, stores an encrypted local session
+PINATA_JWT=... inaya deploy ./dist \
+  --name "My App" --description "..." \
+  --api-base-url https://your-inaya-deployment.example.com
+```
+
+Real safety guards run on the local directory before anything is pinned: `node_modules`/`.git`/
+`.env*` are skipped by default, a symlink or path segment that would resolve outside the target
+directory is rejected outright, and a hard cap (1000 files / 150 MB) aborts before attempting an
+oversized upload.
+
+**Requires a real backend** — same story as every other client here: a typed fetch wrapper with no
+storage of its own. The reference implementation (`inaya-network-dapp/src/app/api/apps/*`,
+`src/lib/appStoreListings.js`) is real, deployed, and MongoDB-backed.
+
+**Honest scoping**: `inaya deploy`'s directory-pinning uses Pinata's multi-file `pinFileToIPFS`
+convention (each file's relative path preserved as its multipart filename, which is what makes
+Pinata wrap the set into one directory CID) — this repo's own development session didn't have a
+`PINATA_JWT` configured to prove the live round trip against a real Pinata account, so treat the
+first real deploy as your own verification that the returned CID resolves as expected via a gateway,
+same "verify it yourself" standard this SDK holds everywhere else.
+
+**Live repository:** github.com/Talhawaqas/custody-sdk

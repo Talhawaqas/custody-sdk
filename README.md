@@ -42,12 +42,13 @@ See [SDK_GUIDE.md §3](./SDK_GUIDE.md#3-quick-start--browser-wallet-connected-up
 - **Payments** (`src/payments.js`) — a typed client for the card-payment (no-wallet) backend routes.
 - **Metadata** (`src/metadata.js`) — rename/move/delete, virtual folders, and sharing — an off-chain layer authenticated by wallet signatures, since the on-chain contract itself is write-once.
 - **Backup** (`src/backup.js`) — replica redundancy status/health/recovery for your uploaded shards across independent pinning providers. Not to be confused with `createPasskeyBackup`/`restorePasskeyBackup` (a separate, local-only pair of functions that back up your *passkey*, not file data — see [SDK_GUIDE.md §15](./SDK_GUIDE.md#15-the-backup-client--replica-redundancy--recovery)).
+- **AppStore** (`src/appStore.js`) — submit your own app to Inaya's Web3 App Store (`submitListing`), check your submission's review status (`getMyListings`), or browse what's already public (`getListings`). Every submission is wallet-signed and reviewed by an admin before it's public — see [SDK_GUIDE.md §16](./SDK_GUIDE.md#16-the-appstore-client--list-your-own-app). Pair it with `inaya deploy` (below) to pin a whole static site to IPFS and submit it in one command.
 
 Runnable examples for React (upload, staking, file management), Next.js (all three backend clients), and plain Node.js are in [`examples/`](./examples).
 
 ## The wider ecosystem
 
-This repo is also a monorepo for the tooling built on top of the SDK — see [`packages/`](./packages) for `@inaya-network/react` (drop-in UI components), `inaya-cli` (terminal/CI-CD tool), and `create-inaya-dapp` (project scaffolding). All three are published and installable now:
+This repo is also a monorepo for the tooling built on top of the SDK — see [`packages/`](./packages) for `@inaya-network/react` (drop-in UI components), `inaya-cli` (terminal/CI-CD tool — including `inaya deploy <path>`, which pins a local static site directory to IPFS via your own Pinata account and submits it to the App Store for review), and `create-inaya-dapp` (project scaffolding). All three are published and installable now:
 
 ```bash
 npm install @inaya-network/react

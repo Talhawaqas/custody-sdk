@@ -28,6 +28,7 @@ import { Payments } from "./payments.js";
 import { Metadata } from "./metadata.js";
 import { Analytics } from "./analytics.js";
 import { Backup } from "./backup.js";
+import { AppStore } from "./appStore.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -347,6 +348,7 @@ export const InayaKernel = {
   Metadata,
   Analytics,
   Backup,
+  AppStore,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };
