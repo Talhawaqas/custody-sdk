@@ -10,7 +10,7 @@ Client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard, 
 npm install @inaya-network/custody-sdk ethers
 ```
 
-Live on the public npm registry, published under both `latest` and `beta` dist-tags (`1.0.5-beta`) — see [SDK_GUIDE.md §1](./SDK_GUIDE.md#1-installation) for the GitHub-install alternative if you'd rather track a specific commit. `ethers` (v6) is a peer dependency.
+Live on the public npm registry, published under both `latest` and `beta` dist-tags (`1.0.7-beta`) — see [SDK_GUIDE.md §1](./SDK_GUIDE.md#1-installation) for the GitHub-install alternative if you'd rather track a specific commit. `ethers` (v6) is a peer dependency.
 
 ## 30-second example
 
@@ -41,6 +41,7 @@ See [SDK_GUIDE.md §3](./SDK_GUIDE.md#3-quick-start--browser-wallet-connected-up
 - **On-chain** (`src/index.js`) — wraps the deployed `InayaCustody` and `InayaStaking` contracts. Dual-mode: browser wallet or a server-held `ethers.Wallet`.
 - **Payments** (`src/payments.js`) — a typed client for the card-payment (no-wallet) backend routes.
 - **Metadata** (`src/metadata.js`) — rename/move/delete, virtual folders, and sharing — an off-chain layer authenticated by wallet signatures, since the on-chain contract itself is write-once.
+- **Backup** (`src/backup.js`) — replica redundancy status/health/recovery for your uploaded shards across independent pinning providers. Not to be confused with `createPasskeyBackup`/`restorePasskeyBackup` (a separate, local-only pair of functions that back up your *passkey*, not file data — see [SDK_GUIDE.md §15](./SDK_GUIDE.md#15-the-backup-client--replica-redundancy--recovery)).
 
 Runnable examples for React (upload, staking, file management), Next.js (all three backend clients), and plain Node.js are in [`examples/`](./examples).
 

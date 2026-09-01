@@ -14,7 +14,7 @@ A client-side cryptographic sovereignty SDK for Inaya Network — encrypt, shard
 npm install @inaya-network/custody-sdk ethers
 ```
 
-`1.0.5-beta` is published under both the `beta` and `latest` dist-tags, so the plain install above resolves correctly — `npm install @inaya-network/custody-sdk@beta` also still works and points at the same version. The version string itself still says `-beta` (see the known limitations section for what a real stable release would mean here) even though it's what `latest` currently resolves to — don't read "installs without a tag" as "this has graduated out of beta."
+`1.0.7-beta` is published under both the `beta` and `latest` dist-tags, so the plain install above resolves correctly — `npm install @inaya-network/custody-sdk@beta` also still works and points at the same version. The version string itself still says `-beta` (see the known limitations section for what a real stable release would mean here) even though it's what `latest` currently resolves to — don't read "installs without a tag" as "this has graduated out of beta."
 
 `ethers` (v6) is a peer dependency, not bundled — install it alongside regardless.
 
@@ -26,13 +26,14 @@ This repo is private, so that path needs collaborator access (ask Talha) and git
 
 ## 2. What This SDK Actually Does
 
-Five layers, each independently usable:
+Six layers, each independently usable:
 
 1. **Crypto** (`crypto.js`) — client-side AES-GCM-256 encryption and binary sharding. Works in browsers *and* plain Node.js (verified — `readFileAsDataURL` uses the portable `file.arrayBuffer()` API, not the browser-only `FileReader`).
 2. **On-chain** (`index.js`) — wraps `InayaCustody`'s `batchRegisterAssets`/`assets` calls and `InayaStaking` (see `InayaKernel.Staking` — `stake`/`unstake`/`claimReward`/`calculateReward`/`getStakedBalance`; `examples/StakingWidget.jsx` is a complete browser client). Supports **dual-mode connections**: a browser wallet (via `connectWallet()`) or a server-held `ethers.Wallet` passed directly — the same pattern the actual Inaya backend uses to sign on a card customer's behalf.
 3. **Payments** (`payments.js`) — a typed client for the card-payment backend routes (Corporate Reserve, PAYG, egress checkouts). **Does not contain any secrets** — it only calls `fetch()` against routes you deploy yourself.
 4. **Metadata** (`metadata.js`) — a typed client for rename/move/delete/virtual-folders/sharing, the same "zero secrets, bring-your-own-backend" shape as Payments. Exists because `InayaCustody.batchRegisterAssets()` is write-once on-chain (see §13's known limitations for how this was verified) — this module fills the gap with a server-backed layer authenticated by wallet signatures, not on-chain transactions.
 5. **Analytics** (`analytics.js`) — per-wallet storage statistics (`InayaKernel.Analytics.getWalletStorageStats()`), built entirely on data the SDK can already read. No new on-chain calls, no new backend beyond Metadata's existing `list-files` route. See §10 for the real constraints this works within (no on-chain file enumeration, no on-chain file-size field) and how it stays honest about them rather than fabricating numbers.
+6. **Backup** (`backup.js`) — replica redundancy status/health/recovery for your uploaded shards across independent pinning providers (Pinata + Filebase). See §15.
 
 ## 3. Quick Start — Browser, Wallet-Connected Upload
 
