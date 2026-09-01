@@ -389,11 +389,9 @@ wrapper with no storage of its own. The reference implementation
 MongoDB-backed, not illustrative-only.
 
 **Honest scoping**: redundancy is provider-diversity (replicating each shard across independent
-pinning providers), not erasure coding — it doesn't change the underlying 2-of-2 shard split, so
-losing *both* shards' entire replica sets independently still loses the file, same as before this
-existed. See the architecture doc's §2 for the full reasoning. As of this writing, only one
-pinning provider (Pinata) has real credentials configured — a second (Filebase) is fully coded but
-not yet live, so every asset's real, current status correctly reports `Degraded` (1 of 2 target
-replicas) rather than a false `Protected`.
+pinning providers — Pinata and Filebase, both real and live as of 2026-09-01), not erasure coding
+— it doesn't change the underlying 2-of-2 shard split, so losing *both* shards' entire replica sets
+independently still loses the file, same as before this existed. See the architecture doc's §2 for
+the full reasoning and §7 for the real, live proof of both the replication and full recovery cycle.
 
 **Live repository:** github.com/Talhawaqas/custody-sdk
