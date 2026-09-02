@@ -10,6 +10,32 @@ point was manual, undocumented per-release, so it isn't reconstructed here beyon
 summary. Going forward, `.github/workflows/release.yml` fails a tag push that doesn't
 also update this file, so every released version has a real entry.
 
+## [1.0.10-beta]
+
+Fixes a real correctness bug in the release-verification infrastructure itself, found by
+actually doing the "independent party reproduces and verifies a release" step from the
+SOW's Definition of Done against v1.0.9-beta rather than just asserting it works: this
+repo's own git-tree-hash and a fresh Windows checkout's git-tree-hash for the identical
+tagged commit came out *different*. Root cause: `CHECKSUMS.md`'s git-tree hash was
+computed via `git archive HEAD | sha256sum`, hashing a tar serialization of the tree --
+not guaranteed byte-identical across git versions (confirmed: local git 2.55.0 vs
+ubuntu-latest's git produced different bytes for the same content). That's the opposite
+of what publishing a reproducible hash is for.
+
+### Fixed
+- `.github/workflows/release.yml` now computes the git tree hash via
+  `git rev-parse HEAD^{tree}` -- git's own content-addressed tree object id, which is
+  identical on every git install by construction, instead of re-serializing the tree
+  through `git archive`.
+- `docs/VERIFYING_RELEASES.md` and `CHECKSUMS.md` updated to match, and to document a
+  related, narrower caveat: byte-for-byte `npm pack` tarball reproducibility isn't
+  guaranteed across npm versions either, so the verification steps now recommend
+  downloading the tarball CI actually attached to the GitHub Release (always matches, by
+  definition) plus a file-content diff against the tagged source, rather than re-running
+  `npm pack` locally and comparing hashes.
+- `package.json` was also missing a `repository` field, which `npm publish --provenance`
+  requires to match against the GitHub Actions build attestation -- added.
+
 ## [1.0.9-beta]
 
 The first release actually cut through `.github/workflows/release.yml` itself, rather than

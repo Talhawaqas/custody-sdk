@@ -40,6 +40,14 @@ jobs:
       - run: npm ci
       - run: npm test
 
+      # git-tree-hash uses `git rev-parse HEAD^{tree}` -- git's own content-addressed tree
+      # object id -- rather than `git archive HEAD | sha256sum`. The two are NOT
+      # equivalent: git archive's tar serialization is not guaranteed byte-identical
+      # across git versions (confirmed directly -- this repo's local Windows git 2.55.0
+      # produced a different archive hash than ubuntu-latest's git for the identical
+      # tagged commit), which broke the actual point of publishing this hash: letting an
+      # independent party reproduce it with whatever git they have installed. The tree
+      # object id is git's native, version-independent proof that content matches.
       - name: Compute checksums
         id: checksums
         run: |
@@ -47,7 +55,7 @@ jobs:
           TARBALL=$(ls inaya-network-custody-sdk-*.tgz)
           echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
           echo "npm_sha256=$(sha256sum "$TARBALL" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-          echo "tree_sha256=$(git archive HEAD | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "tree_hash=$(git rev-parse HEAD^{tree})" >> "$GITHUB_OUTPUT"
 
       # continue-on-error: IPFS pinning is a secondary, complementary delivery channel on
       # top of the git-tree/npm-tarball hash verification above, which is the actual
@@ -74,7 +82,7 @@ jobs:
           cat >> CHECKSUMS.md << EOF
 
           ## ${{ github.ref_name }} ($(date -u +%Y-%m-%d))
-          - git-tree-sha256: \`${{ steps.checksums.outputs.tree_sha256 }}\`
+          - git-tree-hash: \`${{ steps.checksums.outputs.tree_hash }}\`
           - npm-tarball-sha256: \`${{ steps.checksums.outputs.npm_sha256 }}\`
           $CID_LINE
           EOF
@@ -94,8 +102,8 @@ jobs:
         with:
           files: ${{ steps.checksums.outputs.tarball }}
           body: |
-            **SHA-256 (git tree):** `${{ steps.checksums.outputs.tree_sha256 }}`
+            **Git tree hash:** `${{ steps.checksums.outputs.tree_hash }}`
             **SHA-256 (npm tarball):** `${{ steps.checksums.outputs.npm_sha256 }}`
-            **IPFS CID:** `${{ steps.pin.outputs.cid }}`
+            **IPFS CID:** `${{ steps.pin.outcome == 'success' && steps.pin.outputs.cid || '(pinning failed for this release -- see the workflow run)' }}`
 
             See [docs/VERIFYING_RELEASES.md](https://github.com/Talhawaqas/custody-sdk/blob/main/docs/VERIFYING_RELEASES.md) to reproduce and verify this release yourself.
