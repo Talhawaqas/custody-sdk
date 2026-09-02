@@ -18,6 +18,14 @@ provenance, IPFS pin, `CHECKSUMS.md`/GitHub Release) for real. No source changes
 this entry and the version bump; 1.0.8-beta's changes (below) are what's actually being
 verified by this release.
 
+Getting this pipeline green surfaced two real infrastructure bugs, both fixed in this
+version rather than reverting to a manual publish: the compute-heavy PBKDF2 test suite
+needed a longer `--test-timeout` on CI hardware than it does locally, IPFS pinning was
+built as a hard blocker for the whole release (a third-party Pinata plan-limit failure
+shouldn't be able to stop `npm publish`), and `package.json` was missing a `repository`
+field, which `npm publish --provenance` requires to match against the GitHub Actions
+build attestation.
+
 ## [1.0.8-beta]
 
 ### Added
