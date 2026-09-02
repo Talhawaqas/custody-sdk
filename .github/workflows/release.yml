@@ -49,8 +49,15 @@ jobs:
           echo "npm_sha256=$(sha256sum "$TARBALL" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "tree_sha256=$(git archive HEAD | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
+      # continue-on-error: IPFS pinning is a secondary, complementary delivery channel on
+      # top of the git-tree/npm-tarball hash verification above, which is the actual
+      # primary integrity guarantee -- a Pinata outage or account/plan issue shouldn't be
+      # able to block shipping the npm package itself. A failed pin here is recorded
+      # honestly below (no fabricated CID) rather than silently dropped or blocking the rest
+      # of the release.
       - name: Pin release to IPFS
         id: pin
+        continue-on-error: true
         env:
           INAYA_RELEASE_PINATA_JWT: ${{ secrets.INAYA_RELEASE_PINATA_JWT }}
         run: |
@@ -59,12 +66,17 @@ jobs:
 
       - name: Record checksums in CHECKSUMS.md
         run: |
+          if [ "${{ steps.pin.outcome }}" = "success" ]; then
+            CID_LINE="- ipfs-cid: \`${{ steps.pin.outputs.cid }}\`"
+          else
+            CID_LINE="- ipfs-cid: (pinning failed for this release -- see the workflow run's \"Pin release to IPFS\" step; git-tree/npm-tarball hashes above are unaffected and remain the primary verification path)"
+          fi
           cat >> CHECKSUMS.md << EOF
 
           ## ${{ github.ref_name }} ($(date -u +%Y-%m-%d))
           - git-tree-sha256: \`${{ steps.checksums.outputs.tree_sha256 }}\`
           - npm-tarball-sha256: \`${{ steps.checksums.outputs.npm_sha256 }}\`
-          - ipfs-cid: \`${{ steps.pin.outputs.cid }}\`
+          $CID_LINE
           EOF
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
