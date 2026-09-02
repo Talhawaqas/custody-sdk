@@ -10,6 +10,14 @@ point was manual, undocumented per-release, so it isn't reconstructed here beyon
 summary. Going forward, `.github/workflows/release.yml` fails a tag push that doesn't
 also update this file, so every released version has a real entry.
 
+## [1.0.9-beta]
+
+The first release actually cut through `.github/workflows/release.yml` itself, rather than
+published by hand — verifies the pipeline end to end (test suite, dual checksums, npm
+provenance, IPFS pin, `CHECKSUMS.md`/GitHub Release) for real. No source changes beyond
+this entry and the version bump; 1.0.8-beta's changes (below) are what's actually being
+verified by this release.
+
 ## [1.0.8-beta]
 
 ### Added
