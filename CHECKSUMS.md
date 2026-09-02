@@ -33,3 +33,8 @@ release entry.
   described above. It's still valid as a record of what CI actually built and published
   (the same commit's git-tree-hash is `git rev-parse v1.0.9-beta^{tree}`), just not
   reproducible via `git archive` on a different git version than CI's.
+
+## v1.0.10-beta (2026-09-02)
+- git-tree-hash: `61c6eebdc414989a7db49923ad3162efbd7d174d`
+- npm-tarball-sha256: `5cdfbc768faa12de62b1c17478f4b2f8cd343821a2cea6ddd2168e916050bf29`
+- ipfs-cid: (pinning failed for this release -- see the workflow run's "Pin release to IPFS" step; git-tree/npm-tarball hashes above are unaffected and remain the primary verification path)
