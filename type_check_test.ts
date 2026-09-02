@@ -6,6 +6,7 @@ import InayaKernel, {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  reconstructAndDecrypt,
   connectWallet,
   anchorToLedger,
   approveFeeTokens,
@@ -31,6 +32,11 @@ async function testFullFlow(file: File) {
   const sharded = await disperseAndSlice({ file, encryptionKey: vaultKey });
   const shardAlpha: string = sharded.shardAlpha;
   const shardBeta: string = sharded.shardBeta;
+
+  // Standalone decrypt primitive (no on-chain lookup, no gateway fetch — just the two
+  // shards + passkey) — the piece inaya-network-dapp's own dual-gateway shard-fetch flow
+  // needs directly, distinct from retrieveAndReconstruct()'s full on-chain+fetch+decrypt.
+  const recoveredDataUrl: string = await reconstructAndDecrypt({ shardAlpha, shardBeta, passkey: "test" });
 
   // Wallet
   const connection: WalletConnection = await connectWallet();
@@ -60,6 +66,9 @@ async function testFullFlow(file: File) {
   // Staking
   const stakeResult = await Staking.stake({ connection, amount: 1000n });
   const reward: bigint = await Staking.calculateReward({ connection, address });
+
+  // Also reachable through the InayaKernel namespace, same as disperseAndSlice above.
+  const alsoRecovered: string = await InayaKernel.reconstructAndDecrypt({ shardAlpha, shardBeta, passkey: "test" });
 
   // Default export shape
   const kernelMethods: string[] = Object.keys(InayaKernel);

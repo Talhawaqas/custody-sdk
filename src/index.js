@@ -336,6 +336,7 @@ export const InayaKernel = {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  reconstructAndDecrypt,
   createPasskeyBackup,
   restorePasskeyBackup,
   isPasskeyBackupEnvelope,

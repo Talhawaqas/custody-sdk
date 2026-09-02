@@ -1,8 +1,8 @@
 // src/index.d.ts
 // Type definitions matching index.js exactly — see that file for implementation.
 
-import { generateSecureSalt, deriveVaultKey, disperseAndSlice } from "./crypto";
-import type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo } from "./crypto";
+import { generateSecureSalt, deriveVaultKey, disperseAndSlice, reconstructAndDecrypt } from "./crypto";
+import type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, ReconstructAndDecryptParams, HashAlgo } from "./crypto";
 import { createPasskeyBackup, restorePasskeyBackup, isPasskeyBackupEnvelope, PASSKEY_BACKUP_VERSION } from "./passkeyBackup";
 import type { PasskeyBackupEnvelope, CreatePasskeyBackupOptions } from "./passkeyBackup";
 import type { InayaEventEmitter } from "./utils";
@@ -206,6 +206,7 @@ export {
   generateSecureSalt,
   deriveVaultKey,
   disperseAndSlice,
+  reconstructAndDecrypt,
   createPasskeyBackup,
   restorePasskeyBackup,
   isPasskeyBackupEnvelope,
@@ -218,7 +219,7 @@ export {
   InayaDecryptionError,
 };
 
-export type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, HashAlgo, PasskeyBackupEnvelope, CreatePasskeyBackupOptions };
+export type { VaultKey, DeriveVaultKeyParams, DisperseAndSliceParams, DisperseAndSliceResult, ReconstructAndDecryptParams, HashAlgo, PasskeyBackupEnvelope, CreatePasskeyBackupOptions };
 
 export interface InayaErrorClasses {
   InayaError: typeof InayaError;
@@ -233,6 +234,7 @@ export interface InayaKernelAPI {
   generateSecureSalt: typeof generateSecureSalt;
   deriveVaultKey: typeof deriveVaultKey;
   disperseAndSlice: typeof disperseAndSlice;
+  reconstructAndDecrypt: typeof reconstructAndDecrypt;
   createPasskeyBackup: typeof createPasskeyBackup;
   restorePasskeyBackup: typeof restorePasskeyBackup;
   isPasskeyBackupEnvelope: typeof isPasskeyBackupEnvelope;
