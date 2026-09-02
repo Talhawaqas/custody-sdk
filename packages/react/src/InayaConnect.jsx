@@ -44,6 +44,9 @@ export default function InayaConnect({ onReady, onError, salt: saltProp, label =
     try {
       const salt = saltProp ?? InayaKernel.generateSecureSalt(16);
       const vaultKey = await InayaKernel.deriveVaultKey({ passkey, salt });
+      setPasskey(""); // the derived vaultKey is what callers need from here on -- no reason for the
+      // raw passkey to keep sitting in component state, visible in React DevTools' state inspector
+      // for as long as this component stays mounted.
       onReady?.({ connection, vaultKey, salt, address: connection.address });
     } catch (err) {
       setError(err.message);

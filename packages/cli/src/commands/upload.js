@@ -32,7 +32,11 @@ export async function uploadCommand(filePath, options) {
     process.exit(1);
   }
 
-  const passkey = options.passkey || process.env.INAYA_PASSKEY || await promptHidden("Encryption passkey: ");
+  // No --passkey flag, deliberately -- a command-line argument is visible to other users on a
+  // shared machine via `ps`/process listing and persists in shell history, unlike login's private
+  // key (env var or hidden prompt only). Same reasoning applies here, so this only ever reads the
+  // env var or prompts.
+  const passkey = process.env.INAYA_PASSKEY || await promptHidden("Encryption passkey: ");
   if (!passkey) {
     console.error("A passkey is required to encrypt the file.");
     process.exit(1);

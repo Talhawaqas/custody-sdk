@@ -25,10 +25,10 @@ Prompts for a wallet private key and a CLI password, then stores the key **encry
 ### `inaya upload <path>`
 
 ```bash
-inaya upload ./report.pdf --passkey "your-encryption-passkey"
+inaya upload ./report.pdf
 ```
 
-Encrypts and shards the file locally, pins both shards to IPFS (requires `PINATA_JWT` in your environment — get one from app.pinata.cloud), and anchors the record on-chain using the logged-in wallet.
+Prompts for an encryption passkey (or reads `INAYA_PASSKEY` from the environment for non-interactive/CI use — never pass it as a command-line flag; unlike environment variables, arguments are visible to other users on a shared machine via `ps`/process listing and persist in shell history). Encrypts and shards the file locally, pins both shards to IPFS (requires `PINATA_JWT` in your environment — get one from app.pinata.cloud), and anchors the record on-chain using the logged-in wallet.
 
 Pass `--api-base-url <url>` to also register the upload in your deployed Metadata backend, so `inaya list` can find it afterward (see `examples/nextjs-metadata-api-routes.js` in the SDK repo for what that backend needs to implement).
 
@@ -50,9 +50,10 @@ Prints every file registered for the logged-in wallet.
     INAYA_PRIVATE_KEY: ${{ secrets.INAYA_PRIVATE_KEY }}
     INAYA_CLI_PASSWORD: ${{ secrets.INAYA_CLI_PASSWORD }}
     PINATA_JWT: ${{ secrets.PINATA_JWT }}
+    INAYA_PASSKEY: ${{ secrets.INAYA_PASSKEY }}
   run: |
     npx inaya-cli login
-    npx inaya-cli upload ./dist/build.tar.gz --passkey "${{ secrets.INAYA_PASSKEY }}"
+    npx inaya-cli upload ./dist/build.tar.gz
 ```
 
 ## Security notes

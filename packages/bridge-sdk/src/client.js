@@ -17,13 +17,36 @@ const MESSENGER_SENT_ABI = [
  * @typedef {Object} InayaBridgeClientOptions
  * @property {string} [apiBaseUrl]
  * @property {import('ethers').Signer} [signer]
+ * @property {Object<number, {bridge?: string, inayaToken?: string, staking?: string, stakingGateway?: string}>} [pinnedContracts]
+ *   Optional, keyed by chainId. getSupportedChains() intentionally fetches contract addresses
+ *   from `apiBaseUrl` at runtime rather than hardcoding them (so this SDK doesn't go stale after a
+ *   redeploy) -- but that also means a compromised/malicious `apiBaseUrl` could hand back an
+ *   attacker's own contract address for bridgeTransfer()/stake() to approve() and call into. If
+ *   you know your deployment's real addresses (recommended for production/mainnet use), pass them
+ *   here; every mutating call below then verifies the chain object it was given against this
+ *   allowlist before touching a signer, and throws rather than silently proceeding on a mismatch.
  */
 
 export class InayaBridgeClient {
   /** @param {InayaBridgeClientOptions} options */
-  constructor({ apiBaseUrl = "https://inayanetwork.com", signer } = {}) {
+  constructor({ apiBaseUrl = "https://inayanetwork.com", signer, pinnedContracts } = {}) {
     this.apiBaseUrl = apiBaseUrl.replace(/\/$/, "");
     this.signer = signer;
+    this.pinnedContracts = pinnedContracts || null;
+  }
+
+  /** Throws if `address` isn't even well-formed, and (when pinning is configured for this
+   *  chainId) throws unless it exactly matches the pinned address for `contractKey`. Called right
+   *  before every approve()/contract-call site below uses an address sourced from a chain config
+   *  object, whether that object came from getSupportedChains() or was constructed by the caller. */
+  _verifyContractAddress(chainId, contractKey, address) {
+    if (!ethers.isAddress(address) || address === ethers.ZeroAddress) {
+      throw new Error(`InayaBridgeClient: "${contractKey}" for chain ${chainId} is not a valid address.`);
+    }
+    const pinned = this.pinnedContracts?.[chainId]?.[contractKey];
+    if (pinned && ethers.getAddress(pinned) !== ethers.getAddress(address)) {
+      throw new Error(`InayaBridgeClient: "${contractKey}" for chain ${chainId} (${address}) doesn't match the pinned address (${pinned}) -- refusing to sign.`);
+    }
   }
 
   async _fetch(path, options) {
@@ -70,12 +93,15 @@ export class InayaBridgeClient {
     let tx;
 
     if (sourceChain.isHome) {
+      this._verifyContractAddress(sourceChain.chainId, "inayaToken", sourceChain.contracts.inayaToken);
+      this._verifyContractAddress(sourceChain.chainId, "bridge", sourceChain.contracts.bridge);
       const fee = 100000000000000n; // InayaToken's flat 0.0001-token transfer fee, home side only
       const token = new ethers.Contract(sourceChain.contracts.inayaToken, ERC20_ABI, signer);
       await (await token.approve(sourceChain.contracts.bridge, amountWei + fee)).wait();
       const bridge = new ethers.Contract(sourceChain.contracts.bridge, BRIDGE_HOME_ABI, signer);
       tx = await bridge.bridgeOut(destChainId, recipientBytes32, amountWei);
     } else {
+      this._verifyContractAddress(sourceChain.chainId, "bridge", sourceChain.contracts.bridge);
       const bridge = new ethers.Contract(sourceChain.contracts.bridge, BRIDGE_SPOKE_ABI, signer);
       tx = await bridge.bridgeToHome(recipientBytes32, amountWei);
     }
@@ -112,10 +138,12 @@ export class InayaBridgeClient {
   async stake({ chain, amountWei, lockPeriodDays }) {
     const signer = this._requireSigner();
     if (chain.isHome) {
+      this._verifyContractAddress(chain.chainId, "staking", chain.contracts.staking);
       const staking = new ethers.Contract(chain.contracts.staking, STAKING_ABI, signer);
       const tx = await staking.stake(amountWei, lockPeriodDays);
       return tx.wait();
     }
+    this._verifyContractAddress(chain.chainId, "stakingGateway", chain.contracts.stakingGateway);
     const gateway = new ethers.Contract(chain.contracts.stakingGateway, STAKING_GATEWAY_SPOKE_ABI, signer);
     const tx = await gateway.stakeCrossChain(amountWei, lockPeriodDays);
     return tx.wait();
@@ -124,6 +152,7 @@ export class InayaBridgeClient {
   /** Unstakes on home, paid out to `destChainId` (use the home chainId for a local payout). */
   async unstake({ homeChain, amountWei, destChainId, destRecipient, userAddress }) {
     const signer = this._requireSigner();
+    this._verifyContractAddress(homeChain.chainId, "staking", homeChain.contracts.staking);
     const staking = new ethers.Contract(homeChain.contracts.staking, STAKING_ABI, signer);
     const tx = await staking.withdrawTo(amountWei, destChainId, ethers.zeroPadValue(destRecipient, 32));
     const receipt = await tx.wait();
@@ -139,6 +168,7 @@ export class InayaBridgeClient {
   /** Claims rewards on home, paid out to `destChainId`. */
   async claimRewards({ homeChain, destChainId, destRecipient, userAddress }) {
     const signer = this._requireSigner();
+    this._verifyContractAddress(homeChain.chainId, "staking", homeChain.contracts.staking);
     const staking = new ethers.Contract(homeChain.contracts.staking, STAKING_ABI, signer);
     const tx = await staking.claimRewardTo(destChainId, ethers.zeroPadValue(destRecipient, 32));
     const receipt = await tx.wait();

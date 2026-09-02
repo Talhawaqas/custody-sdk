@@ -21,9 +21,10 @@ import { ethers } from "ethers";
 import { resolveWallet } from "../resolveWallet.js";
 import { recordRestart, recordError, getState } from "../state.js";
 import { getDaemonVersion } from "../version.js";
+import { signNodeAction } from "../nodeAuth.js";
 import { NODE_REGISTRY_ADDRESS, NODE_REGISTRY_ABI, API_BASE_URL, HEARTBEAT_INTERVAL_MS } from "../constants.js";
 
-async function sendHeartbeat({ apiBaseUrl, nodeId, address, registry }) {
+async function sendHeartbeat({ apiBaseUrl, nodeId, address, wallet, registry }) {
   const node = await registry.nodes(address);
   if (!node.isRegistered) {
     const message = `Not registered on-chain. Run "inaya-node-daemon register <capacityGB>" first.`;
@@ -34,6 +35,7 @@ async function sendHeartbeat({ apiBaseUrl, nodeId, address, registry }) {
 
   const state = getState();
   try {
+    const { message: signedMessage, signature, timestamp } = await signNodeAction(wallet, { action: "heartbeat", nodeId });
     const res = await fetch(`${apiBaseUrl}/api/nodes/heartbeat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -48,6 +50,9 @@ async function sendHeartbeat({ apiBaseUrl, nodeId, address, registry }) {
         restartCount: state.restartCount || 0,
         lastErrorAt: state.lastError?.timestamp || null,
         lastErrorMessage: state.lastError?.message || null,
+        message: signedMessage,
+        signature,
+        timestamp,
       }),
     });
     const body = await res.json();
@@ -74,8 +79,8 @@ export async function startCommand(options) {
   recordRestart();
   console.log(`Starting heartbeat loop for ${address} (every ${Math.round(intervalMs / 1000)}s). Ctrl+C to stop.`);
 
-  await sendHeartbeat({ apiBaseUrl, nodeId, address, registry });
-  const timer = setInterval(() => sendHeartbeat({ apiBaseUrl, nodeId, address, registry }), intervalMs);
+  await sendHeartbeat({ apiBaseUrl, nodeId, address, wallet, registry });
+  const timer = setInterval(() => sendHeartbeat({ apiBaseUrl, nodeId, address, wallet, registry }), intervalMs);
 
   const shutdown = () => {
     clearInterval(timer);

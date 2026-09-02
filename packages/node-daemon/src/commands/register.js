@@ -16,6 +16,7 @@
 
 import { ethers } from "ethers";
 import { resolveWallet } from "../resolveWallet.js";
+import { signNodeAction } from "../nodeAuth.js";
 import { NODE_REGISTRY_ADDRESS, NODE_REGISTRY_ABI, API_BASE_URL } from "../constants.js";
 
 export async function registerCommand(capacityGB, options) {
@@ -42,10 +43,11 @@ export async function registerCommand(capacityGB, options) {
   const apiBaseUrl = options?.apiBaseUrl || API_BASE_URL;
   const nodeId = address.toLowerCase();
   try {
+    const { message, signature, timestamp } = await signNodeAction(wallet, { action: "register", nodeId });
     const res = await fetch(`${apiBaseUrl}/api/nodes/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId, operatorWallet: address, capacityGB: capacity }),
+      body: JSON.stringify({ nodeId, operatorWallet: address, capacityGB: capacity, message, signature, timestamp }),
     });
     const body = await res.json();
     if (!res.ok || !body.success) {

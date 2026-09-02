@@ -21,7 +21,6 @@ program
 program
   .command("upload <path>")
   .description("Encrypt, shard, pin, and anchor a local file.")
-  .option("--passkey <passkey>", "Encryption passkey (falls back to INAYA_PASSKEY, then an interactive prompt)")
   .option("--api-base-url <url>", "Also register this file in your Metadata backend, so \"inaya list\" can find it later")
   .action(uploadCommand);
 
