@@ -32,6 +32,7 @@ import { AppStore } from "./appStore.js";
 import { ComplianceProofs } from "./complianceProofs.js";
 import { Intent } from "./intent.js";
 import { Attestation } from "./attestation.js";
+import { TrustPlatform } from "./trustPlatform.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -356,6 +357,7 @@ export const InayaKernel = {
   ComplianceProofs,
   Intent,
   Attestation,
+  TrustPlatform,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };
