@@ -3,6 +3,7 @@ import type { Signer } from "ethers";
 export interface InayaBridgeClientOptions {
   apiBaseUrl?: string;
   signer?: Signer;
+  pinnedContracts?: Record<number, { bridge?: string; inayaToken?: string; staking?: string; stakingGateway?: string }>;
 }
 
 export declare class InayaBridgeClient {
@@ -33,5 +34,5 @@ export declare class InayaBridgeClient {
   }): Promise<{ messageHash: string; sourceTxHash: string }>;
 }
 
-export declare const CHAIN_IDS: { BSC_TESTNET: number; SEPOLIA: number; AMOY: number; FUJI: number };
+export declare const CHAIN_IDS: { BSC_TESTNET: number; SEPOLIA: number; AMOY: number; FUJI: number; ARBITRUM_SEPOLIA: number; HEDERA_TESTNET: number };
 export declare const SOLANA_DEVNET_CHAIN_ID: number;
