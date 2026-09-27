@@ -10,6 +10,12 @@ point was manual, undocumented per-release, so it isn't reconstructed here beyon
 summary. Going forward, `.github/workflows/release.yml` fails a tag push that doesn't
 also update this file, so every released version has a real entry.
 
+## [Unreleased]
+
+### Added
+
+- `InayaKernel.IdentityIntegration`: a thin, stateless client for the Identity Integration API (`/api/integrations/identity/*`) and its signed inbound webhooks (HMAC-SHA256 over timestamp and raw body, header `X-Inaya-Signature: v1=...`), for automation platforms, RMM scripts and small services. It only talks to Inaya; nothing in it talks to Entra, Active Directory or Rewst. Per-call `{ baseUrl, credential }`, no hidden configuration and no singleton, like `TrustPlatform`. Verified against a local stand-in server (3 tests); it is not yet exercised by a real Rewst workflow.
+
 ## [1.0.10-beta]
 
 Fixes a real correctness bug in the release-verification infrastructure itself, found by
