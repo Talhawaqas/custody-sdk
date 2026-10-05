@@ -34,6 +34,7 @@ import { Intent } from "./intent.js";
 import { Attestation } from "./attestation.js";
 import { TrustPlatform } from "./trustPlatform.js";
 import { IdentityIntegration } from "./identityIntegration.js";
+import { Shares, FileRequests, Governance, Devices, Compliance, Webhooks } from "./competitive.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -360,6 +361,12 @@ export const InayaKernel = {
   Attestation,
   TrustPlatform,
   IdentityIntegration,
+  Shares,
+  FileRequests,
+  Governance,
+  Devices,
+  Compliance,
+  Webhooks,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };

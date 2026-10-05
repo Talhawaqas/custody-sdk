@@ -5,6 +5,7 @@ import { loginCommand } from "../src/commands/login.js";
 import { uploadCommand } from "../src/commands/upload.js";
 import { listCommand } from "../src/commands/list.js";
 import { deployCommand } from "../src/commands/deploy.js";
+import { registerOrgCommands } from "../src/commands/org.js";
 
 const program = new Command();
 
@@ -39,5 +40,9 @@ program
   .option("--api-base-url <url>", "Your deployed App Store backend's base URL (falls back to INAYA_API_BASE_URL) -- without this, the directory is pinned but not submitted")
   .option("-y, --yes", "Skip the confirmation prompt (for CI use)")
   .action(deployCommand);
+
+// Organization administration over the public API (API key only; no wallet key is read).
+const { InayaKernel } = await import("@inaya-network/custody-sdk");
+registerOrgCommands(program, InayaKernel);
 
 program.parseAsync(process.argv);
