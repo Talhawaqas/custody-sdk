@@ -34,11 +34,11 @@ test("round trips: Bearer key, URL, query string, JSON body and error mapping", 
     await Shares.revoke({ ...o, shareId: "s 1" });
     await FileRequests.list(o); await FileRequests.revoke({ ...o, requestId: "r1" });
     await Governance.listPolicies({ ...o, type: "dlp" }); await Governance.listDlpEvents({ ...o, decision: "DENY" }); await Governance.classify({ ...o, documentId: "d1" }); await Governance.classify({ ...o, documentId: "d1", dryRun: false });
-    await Devices.list(o); await Devices.action({ ...o, deviceId: "dev1", action: "block" }); await Compliance.evidence({ ...o, recordType: "SHARE", recordId: "x" });
+    await Devices.list(o); await Devices.action({ ...o, deviceId: "dev1", action: "block" }); await Compliance.evidence({ ...o, recordType: "SHARE", recordId: "x" }); await Compliance.summary(o); await Compliance.controls({ ...o, family: "AU", evidence: "required" });
     assert.deepEqual(seen.map((s) => `${s.method} ${s.url}`), [
       "GET /api/public/v1/shares?status=active&limit=5", "POST /api/public/v1/shares", "POST /api/public/v1/shares", "DELETE /api/public/v1/shares/s%201",
       "GET /api/public/v1/file-requests", "DELETE /api/public/v1/file-requests/r1", "GET /api/public/v1/governance/policies?type=dlp", "GET /api/public/v1/governance/dlp-events?decision=DENY",
-      "POST /api/public/v1/classification/d1", "POST /api/public/v1/classification/d1", "GET /api/public/v1/devices", "POST /api/public/v1/devices/dev1", "GET /api/public/v1/evidence?recordType=SHARE&recordId=x"]);
+      "POST /api/public/v1/classification/d1", "POST /api/public/v1/classification/d1", "GET /api/public/v1/devices", "POST /api/public/v1/devices/dev1", "GET /api/public/v1/evidence?recordType=SHARE&recordId=x", "GET /api/public/v1/compliance/summary", "GET /api/public/v1/compliance/controls?family=AU&evidence=required"]);
     assert.ok(seen.every((s) => s.auth === "Bearer inaya_k1")); assert.deepEqual(seen[8].body, { dryRun: true }, "classify defaults to a dry run"); assert.deepEqual(seen[9].body, { dryRun: false });
     assert.deepEqual(seen[2].body, { documentId: "d1", memberEmail: "a@b.c", permission: "view" });
     const e = await Devices.get({ ...o, deviceId: "boom" }).catch((x) => x); assert.ok(e instanceof InayaNetworkError); assert.equal(e.status, 403); assert.equal(e.code, "FEATURE_OFF"); assert.equal(e.message, "Feature off.");

@@ -72,6 +72,9 @@ export const Devices = {
 };
 
 export const Compliance = {
+  /** Readiness overview by NIST SP 800-53 family. Readiness only: never a certification. */
+  summary: ({ baseUrl, apiKey }) => call({ baseUrl, apiKey, path: "compliance/summary" }),
+  controls: ({ baseUrl, apiKey, family, implementation, evidence, responsibility, owner, q }) => call({ baseUrl, apiKey, path: `compliance/controls${qs({ family, implementation, evidence, responsibility, owner, q })}` }),
   /** The tamper-evident trail for one record. */
   evidence: ({ baseUrl, apiKey, recordType, recordId }) => { need(recordType, "recordType"); need(recordId, "recordId"); return call({ baseUrl, apiKey, path: `evidence${qs({ recordType, recordId })}` }); },
 };
