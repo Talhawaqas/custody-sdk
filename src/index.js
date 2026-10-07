@@ -35,6 +35,7 @@ import { Attestation } from "./attestation.js";
 import { TrustPlatform } from "./trustPlatform.js";
 import { IdentityIntegration } from "./identityIntegration.js";
 import { Shares, FileRequests, Governance, Devices, Compliance, Webhooks } from "./competitive.js";
+import { Pqc } from "./pqc.js";
 import { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError, translateError } from "./errors.js";
 
 /** Shared event emitter — subscribe with InayaKernel.events.on("event:name", handler). */
@@ -367,6 +368,7 @@ export const InayaKernel = {
   Devices,
   Compliance,
   Webhooks,
+  Pqc,
   events,
   errors: { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError },
 };
@@ -375,5 +377,6 @@ export const InayaKernel = {
 // for consumers who'd rather not reach through InayaKernel.errors for instanceof checks.
 export { InayaError, InayaValidationError, InayaWalletError, InayaContractError, InayaNetworkError, InayaDecryptionError };
 export { createPasskeyBackup, restorePasskeyBackup, isPasskeyBackupEnvelope, PASSKEY_BACKUP_VERSION };
+export { Pqc };
 
 export default InayaKernel;
