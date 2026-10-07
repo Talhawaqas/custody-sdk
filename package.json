@@ -1,6 +1,6 @@
 {
   "name": "@inaya-network/custody-sdk",
-  "version": "1.0.11-beta",
+  "version": "1.0.12-beta",
   "description": "Client-side cryptographic sovereignty SDK for the Inaya Network — encrypt, shard, anchor, and reconstruct files against BNB Chain Testnet.",
   "repository": {
     "type": "git",
