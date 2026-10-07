@@ -17,9 +17,11 @@ import { InayaValidationError, InayaDecryptionError } from "../src/errors.js";
 test("capabilityInfo reports the real, documented key/ciphertext/shared-secret lengths", () => {
   const info = capabilityInfo();
   assert.equal(info.algorithmId, ALGORITHM_ID);
-  assert.equal(info.publicKeyLength, 1216);
-  assert.equal(info.secretKeyLength, 32);
-  assert.equal(info.cipherTextLength, 1120);
+  assert.equal(info.mlKemPublicKeyLength, 1184);
+  assert.equal(info.mlKemSecretKeyLength, 2400);
+  assert.equal(info.mlKemCipherTextLength, 1088);
+  assert.equal(info.x25519PublicKeyLength, 32);
+  assert.equal(info.x25519SecretKeyLength, 32);
   assert.equal(info.sharedSecretLength, 32);
 });
 
@@ -31,8 +33,8 @@ test("generateKeyPair produces real, distinct key material each call", () => {
   const a = generateKeyPair();
   const b = generateKeyPair();
   assert.equal(a.algorithmId, ALGORITHM_ID);
-  assert.equal(a.publicKey.length, 1216);
-  assert.equal(a.secretKey.length, 32);
+  assert.equal(a.publicKey.length, 1216); // 1184 (ML-KEM-768 public key) + 32 (X25519 public key)
+  assert.equal(a.secretKey.length, 2432); // 2400 (ML-KEM-768 secret key) + 32 (X25519 secret key)
   assert.notDeepEqual(Buffer.from(a.secretKey), Buffer.from(b.secretKey), "two keygen calls must not collide");
   assert.notDeepEqual(Buffer.from(a.publicKey), Buffer.from(b.publicKey));
 });
