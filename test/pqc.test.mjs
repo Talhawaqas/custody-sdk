@@ -84,9 +84,17 @@ test("wrap/unwrap round-trip recovers the exact original 32-byte content key", (
   assert.deepEqual(Buffer.from(recovered), Buffer.from(contentKey));
 });
 
-test("wrapContentKeyHybrid rejects a content key that isn't exactly 32 bytes", () => {
+test("wrapContentKeyHybrid rejects an empty content key", () => {
   const recipient = generateKeyPair();
-  assert.throws(() => wrapContentKeyHybrid({ contentKey: new Uint8Array(16), recipientPublicKey: recipient.publicKey }), InayaValidationError);
+  assert.throws(() => wrapContentKeyHybrid({ contentKey: new Uint8Array(0), recipientPublicKey: recipient.publicKey }), InayaValidationError);
+});
+
+test("wrapContentKeyHybrid accepts a non-32-byte secret too (e.g. a variable-length passkey for the sharing layer, not just a fixed AES key)", () => {
+  const recipient = generateKeyPair();
+  const passkey = new TextEncoder().encode("a much longer arbitrary passkey string, not 32 bytes");
+  const envelope = wrapContentKeyHybrid({ contentKey: passkey, recipientPublicKey: recipient.publicKey });
+  const recovered = unwrapContentKeyHybrid({ envelope, recipientSecretKey: recipient.secretKey });
+  assert.deepEqual(Buffer.from(recovered), Buffer.from(passkey));
 });
 
 test("unwrapContentKeyHybrid rejects the WRONG recipient's secret key (never silently returns a wrong key)", () => {
@@ -148,11 +156,15 @@ test("Pqc namespace exposes the full documented surface and works end-to-end thr
   assert.deepEqual(Object.keys(Pqc).sort(), [
     "ALGORITHM_ID",
     "ENVELOPE_VERSION",
+    "SHARING_MODE",
     "capabilityInfo",
     "generateDeviceKeyPair",
     "isHybridEnvelope",
     "unwrapContentKeyHybrid",
     "wrapContentKeyHybrid",
+    "wrapForRecipient",
+    "unwrapFromSender",
+    "isAgileHybridEnvelope",
   ].sort());
 
   const device = Pqc.generateDeviceKeyPair();

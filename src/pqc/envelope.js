@@ -38,8 +38,8 @@ function fromBase64(b64) {
  * object than the one it was issued for.
  */
 export function wrapContentKeyHybrid({ contentKey, recipientPublicKey, aad = new Uint8Array(0) }) {
-  if (!contentKey || contentKey.length !== 32) {
-    throw new InayaValidationError("wrapContentKeyHybrid: contentKey must be a 32-byte AES-256 key.");
+  if (!contentKey || contentKey.length === 0) {
+    throw new InayaValidationError("wrapContentKeyHybrid: contentKey must be non-empty bytes.");
   }
   const { cipherText: kemCiphertext, sharedSecret } = encapsulate(recipientPublicKey);
 

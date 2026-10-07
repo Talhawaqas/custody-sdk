@@ -14,9 +14,11 @@
 
 export { ALGORITHM_ID, capabilityInfo } from "./pqc/provider.js";
 export { ENVELOPE_VERSION, wrapContentKeyHybrid, unwrapContentKeyHybrid, isHybridEnvelope } from "./pqc/envelope.js";
+export { SHARING_MODE, wrapForRecipient, unwrapFromSender, isAgileHybridEnvelope } from "./pqc/agileSharing.js";
 
 import { ALGORITHM_ID, capabilityInfo, generateKeyPair } from "./pqc/provider.js";
 import { ENVELOPE_VERSION, wrapContentKeyHybrid, unwrapContentKeyHybrid, isHybridEnvelope } from "./pqc/envelope.js";
+import { SHARING_MODE, wrapForRecipient, unwrapFromSender, isAgileHybridEnvelope } from "./pqc/agileSharing.js";
 
 /** Generates one PQC device key pair. Call once per device, on the device; store secretKey locally, register publicKey with the server. */
 export function generateDeviceKeyPair() {
@@ -26,11 +28,15 @@ export function generateDeviceKeyPair() {
 export const Pqc = {
   ALGORITHM_ID,
   ENVELOPE_VERSION,
+  SHARING_MODE,
   capabilityInfo,
   generateDeviceKeyPair,
   wrapContentKeyHybrid,
   unwrapContentKeyHybrid,
   isHybridEnvelope,
+  wrapForRecipient,
+  unwrapFromSender,
+  isAgileHybridEnvelope,
 };
 
 export default Pqc;
